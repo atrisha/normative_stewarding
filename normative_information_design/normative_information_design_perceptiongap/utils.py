@@ -503,17 +503,35 @@ class Gaussian_plateu_distribution():
         self.mu = mu
         self.sigma =sigma
         self.w = w
+        self.root_2_pi_sigma = math.sqrt(2 * math.pi * self.sigma)
+        self.h = 1 / (1 + (self.w / self.root_2_pi_sigma))
     
     def pdf(self,x):
         root_2_pi_sigma = math.sqrt(2*math.pi*self.sigma)
         h = 1/(1+(self.w/root_2_pi_sigma))   
         exponent = lambda x,side : math.exp((-1/(2*self.sigma**2))*(x-self.mu+(self.w/2))**2) if side=='l' else math.exp((-1/(2*self.sigma**2))*(x-self.mu-(self.w/2))**2)
-        if x <= self.mu-(self.w/2):
-            return (h/root_2_pi_sigma)*exponent(x,'l')
-        elif x >= self.mu+(self.w/2):
-            return (h/root_2_pi_sigma)*exponent(x,'r')
+        if isinstance(x, np.ndarray):
+            results = np.zeros_like(x)  # Initialize result array
+            # Calculate for left Gaussian tail
+            left_mask = x <= self.mu - (self.w / 2)
+            results[left_mask] = (self.h / self.root_2_pi_sigma) * np.exp(-0.5 * ((x[left_mask] - self.mu + self.w / 2) / self.sigma) ** 2)
+            
+            # Calculate for right Gaussian tail
+            right_mask = x >= self.mu + (self.w / 2)
+            results[right_mask] = (self.h / self.root_2_pi_sigma) * np.exp(-0.5 * ((x[right_mask] - self.mu - self.w / 2) / self.sigma) ** 2)
+            
+            # Calculate for the plateau region
+            plateau_mask = ~left_mask & ~right_mask
+            results[plateau_mask] = self.h / self.root_2_pi_sigma
+            
+            return results
         else:
-            return h/root_2_pi_sigma
+            if x <= self.mu-(self.w/2):
+                return (h/root_2_pi_sigma)*exponent(x,'l')
+            elif x >= self.mu+(self.w/2):
+                return (h/root_2_pi_sigma)*exponent(x,'r')
+            else:
+                return h/root_2_pi_sigma
         
     def _generate_gaussian_plateau_samples(self, n_samples):
         """

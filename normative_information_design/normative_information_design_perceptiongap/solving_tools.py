@@ -33,15 +33,17 @@ def get_value(index, state_space):
 
 def get_index(value, state_space):
     # Adjust the value based on its range
-    
-    if 0 <= max(state_space) < 0.5:
-        return int(value*10)  # Use the full scale for the first half
-    elif 0.5 <= max(state_space) <= 1:
-        adjusted_value = (value - 0.5) * 2  # Adjust and scale the second half
-        index = state_space.index(value)
-    else:
+    try:
+        if 0 <= max(state_space) < 0.5:
+            return int(value*10)  # Use the full scale for the first half
+        elif 0.5 <= max(state_space) <= 1:
+            adjusted_value = (value - 0.5) * 2  # Adjust and scale the second half
+            index = state_space.index(value)
+        else:
+            raise ValueError("Value out of allowed range [0,1]", max(state_space))
+    except ValueError:
+        print('value and state space',value,state_space)
         raise ValueError("Value out of allowed range [0,1]", max(state_space))
-    
     # Calculate the index and ensure it falls within the array size
     #index = int(np.floor(adjusted_value * (len(state_space) - 0.00001)))
     return min(index, len(state_space) - 1)  # Ensure index is within bounds
@@ -66,6 +68,7 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
             else:
                 institution.constant_appr_signal = 0.6
             env = parallel_env(render_mode='human', attr_dict=attr_dict)
+            env.signal_cluster = signal_cluster
             env.rhetoric_estimation_model = attr_dict['rhetoric_estimation_model']
             env.min_op_appr = np.min([ag.opinion[ag.norm_context] for ag in env.possible_agents if ag.opinion[ag.norm_context] >= 0.5])
             ''' Check that every norm context has at least one agent '''
@@ -123,8 +126,21 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                             outgroup_posterior = disappr_pos_for_ts if agent.opinion[agent.norm_context] >= 0.5 else appr_pos_for_ts
                             agent.common_proportion_prior = prop_for_ts
                         else:
-                            outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'outgroup')
-                            ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'ingroup')
+                            if signal_cluster == 'appr':
+                                if agent.opinion[agent.norm_context] >= 0.5:
+                                    ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'ingroup')
+                                    outgroup_posterior = agent.common_prior_outgroup
+                                else:
+                                    outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'outgroup')
+                                    ingroup_posterior = agent.common_prior_ingroup
+                            else:
+                                if agent.opinion[agent.norm_context] >= 0.5:
+                                    outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'outgroup')                         
+                                    ingroup_posterior = agent.common_prior_ingroup
+                                else:
+                                    ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'ingroup')  
+                                    outgroup_posterior = agent.common_prior_outgroup
+                                    
                         
                         if env.homogenous_priors:
                             if appr_pos_for_ts is None:
@@ -135,8 +151,7 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
 
                         agent.pseudo_update_posteriors = {institution.type:{'outgroup':outgroup_posterior,'ingroup':ingroup_posterior}}
                     
-                    actions = {agent.id:agent.act(env,run_type={'institutions':{'extensive':institution if institution.type == 'extensive' else None,
-                                                                                'intensive':institution if institution.type == 'intensive' else None},'update_type':'common'},baseline=False) for agent in env.possible_agents}
+                    actions = {agent.id:agent.simple_act(env,run_type={'institutions':institution,'update_type':'common'},baseline=False) for agent in env.possible_agents}
                     _poi = [ag.common_posterior_ingroup for ag in env.possible_agents][0]
                     _poo = [ag.common_posterior_outgroup for ag in env.possible_agents][0]
                     _f = np.mean([ag.opinion[ag.norm_context] for ag in env.possible_agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >= 0.5])
@@ -147,7 +162,7 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                     plt.show()
                     '''
                     ''' common prior is updated based on the action observations '''
-                    observations, reward, terminations, truncations, infos = env.step(actions,run_iter,baseline=False)
+                    observations, reward, terminations, truncations, infos = env.step(actions,run_iter,'transition_genration')
                     
                     f=1
                 else:
@@ -160,6 +175,8 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                 if next_state is np.NaN or (next_state > 0.5 and max(action_and_state_space)<=0.5):
                     print(observations)
                 try:
+                    if action not in action_and_state_space or state not in action_and_state_space or next_state not in action_and_state_space:
+                        f=1
                     a_idx, s_idx, s_prime_idx = get_index(action,action_and_state_space), get_index(state,action_and_state_space), get_index(next_state,action_and_state_space)
                 except ValueError:
                     print(next_state,observations)

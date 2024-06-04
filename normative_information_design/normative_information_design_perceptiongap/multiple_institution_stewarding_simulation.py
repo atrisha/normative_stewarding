@@ -65,7 +65,7 @@ if __name__ == "__main__":
             inst_opt_policy[inst_type] = {'appr':dict(), 'disappr': dict()}
             
             opt_policy_ingroup = solving_tools.run_simulation(inst_type, 'ingroup', attr_dict, show_plots=True)
-            print('Optimal Policy for Ingroup: ', opt_policy_ingroup)
+            print(f'Optimal {inst_type} Policy for Ingroup: ', opt_policy_ingroup)
             for k,v in opt_policy_ingroup.items():
                 inst_opt_policy[inst_type]['appr'][k] = (None,v)
                 inst_opt_policy[inst_type]['disappr'][round(1-k,1)] = (1-v,None)
