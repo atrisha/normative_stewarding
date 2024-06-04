@@ -23,7 +23,7 @@ if __name__ == "__main__":
     common_prior_disappr = (2,5)
     common_proportion_prior = (5,5)
     inst_opt_policy = {}
-    data_directory = 'data'
+    data_directory = os.path.join(os.getcwd(), 'data')
     filename = os.path.join(data_directory, 'inst_opt_policy.json')
     if os.path.isfile(filename):
         inst_opt_policy = load_from_json(filename)
@@ -50,7 +50,7 @@ if __name__ == "__main__":
                         'only_intensive':False,
                         'credible':True}
     run_param['attr_dict'] = attr_dict
-    file_path = 'data/rhet_eq_estimation.pkl'
+    file_path = os.path.join(os.getcwd(),'pickles','rhet_eq_estimation.pkl')
     if os.path.exists(file_path):
         run_param['rhetoric_estimation_model'] = pickle.load(open(file_path, "rb"))
     else:
@@ -86,8 +86,8 @@ if __name__ == "__main__":
             for k,v in inst_opt_policy[inst_type].items():
                 inst_opt_policy[inst_type][k] = {round(float(_k),1):tuple(_v) for _k,_v in inst_opt_policy[inst_type][k].items()}
     run_param['posterior_prediction_model'] = dict()
-    run_param['posterior_prediction_model']['appr'] = pickle.load(open('data/approximator_appr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb'))
-    run_param['posterior_prediction_model']['disappr'] = pickle.load(open('data/approximator_disappr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb'))
+    run_param['posterior_prediction_model']['appr'] = pickle.load(open(os.path.join(os.getcwd(),'pickles','approximator_appr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb')))
+    run_param['posterior_prediction_model']['disappr'] = pickle.load(open(os.path.join(os.getcwd(),'pickles','approximator_disappr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb')))
     run_param['attr_dict']['homogenous_priors'] = False      
     run_param['extensive_optimal'] = inst_opt_policy['extensive']
     run_param['intensive_optimal'] = inst_opt_policy['intensive']

@@ -775,7 +775,7 @@ def generate_rhetoric_equilibrium_estimation_model():
     print(f"MSE: {mse}")
     print(f"Coefficients: {model.coef_}")
     print(f"Intercept: {model.intercept_}")
-    pickle.dump(model, open('rhet_eq_estimation.pkl','wb'))
+    pickle.dump(model, open(os.path.join(os.getcwd(),'pickles','rhet_eq_estimation.pkl'),'wb'))
     return model
 
 #generate_posterior_prediction_model('appr',0.1)
