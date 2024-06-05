@@ -85,14 +85,14 @@ class parallel_env(ParallelEnv):
     def update_simple(self, agent, agents, update_rate):
         theta_prime_rate_appr = None if len([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >=0.5]) == 0 else np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >=0.5])
         theta_prime_rate_disappr = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] <0.5]) if len([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] <0.5]) > 0 else None
-        if theta_prime_rate_appr is None:
+        if theta_prime_rate_appr is not None:
             a_prime = theta_prime_rate_appr * update_rate
             b_prime = update_rate - a_prime
             if agent.opinion[agent.norm_context] >= 0.5:
                 agent.common_posterior_ingroup = (agent.common_posterior_ingroup[0] + a_prime, agent.common_posterior_ingroup[1] + b_prime)
             else:
                 agent.common_posterior_outgroup = (agent.common_posterior_ingroup[0] + a_prime, agent.common_posterior_ingroup[1] + b_prime)
-        if theta_prime_rate_disappr is None:
+        if theta_prime_rate_disappr is not None:
             a_prime = theta_prime_rate_disappr * update_rate
             b_prime = update_rate - a_prime
             if agent.opinion[agent.norm_context] < 0.5:
@@ -524,28 +524,19 @@ class Player():
         rhet =  -1.6425*o**2 + 3.6693*o - 1.3048 
         return min(max(0,rhet),1)
         
-    def opt_rhetoric_intensity_func(self, env, o,op_hat_in,op_hat_out):
-        op_hat_in = op_hat_in[0]/np.sum(op_hat_in) if isinstance(op_hat_in,tuple) else op_hat_in
-        op_hat_out = op_hat_out[0]/np.sum(op_hat_out) if isinstance(op_hat_out,tuple) else op_hat_out
+    def opt_rhetoric_intensity_func(self, env, n_p, o, lambda_ingroup):
         """ This comes from the estimated function of the optimal rhetoric intensity"""
         model = env.rhetoric_estimation_model
-        '''
-        _diff_list = []
-        for n_o in np.linspace(0,1,100):
-            n_i = model.predict(np.asarray([op_hat_in, o, env.alpha, n_o, op_hat_out]).reshape(1,-1))
-            n_o_resp = model.predict(np.asarray([1-op_hat_out, 1-op_hat_out, env.alpha, n_i[0], 1-op_hat_in]).reshape(1,-1))
-            _diff_list.append((abs(n_o-n_o_resp[0]),n_i[0],n_o_resp[0]))
-        _diff_list.sort(key=lambda x: x[0])
-        rhet_eq = max(min(_diff_list[0][1],1),0)
-        '''
-        rhet_eq = model.predict(np.asarray([op_hat_in, o, env.alpha, 1-op_hat_out, op_hat_out]).reshape(1,-1))
+        # With the changed model, these are the features prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples
+        rhet_eq = model.predict(np.asarray([n_p, o, env.alpha, lambda_ingroup]).reshape(1,-1))
         rhet_eq = max(min(rhet_eq,1),0)
-        r_comp_thresh = (self.env.alpha+self.outgroup_rhetoric_estimate(op_hat_out))/ (op_hat_in + op_hat_out)
         '''if o > r_comp_thresh:
             return rhet_eq
         else:
             return 0'''
-        return rhet_eq
+        # The equilibrium above is ex-ante. Now calculate the ex-interim best-response
+        rhet_br = min(1,((n_p * o * lambda_ingroup * (1 - rhet_eq)) / env.alpha )**(1 / rhet_eq)) if rhet_eq>0 else 0 if (n_p * o * lambda_ingroup) < env.alpha else 1
+        return rhet_br
     
     def simple_act(self, env, run_type, baseline):
         rhet_thresh = self.rhet_thresh
@@ -553,7 +544,7 @@ class Player():
         op = self.opinion[self.norm_context]
         mean_from_params = lambda params: params[0]/(params[0]+params[1]) if isinstance(params,tuple) else params
         n_p = self.common_proportion_posterior if isinstance(self.common_proportion_posterior,float) else self.common_proportion_posterior[0]/np.sum(self.common_proportion_posterior)
-        op_degree = op if op >= 0.5 else (1-op)
+        op_degree = op if env.signal_cluster=='appr' else (1-op)
         conc_prop = n_p if op >= 0.5 else (1-n_p)
         opt_rhetoric = dict()
         institution = run_type['institutions']
@@ -562,7 +553,7 @@ class Player():
         theta_outgroup = self.pseudo_update_posteriors[institution.type]['outgroup']
         theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
         theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
-        common_rhetoric = min(self.opt_rhetoric_intensity_func(env,op_degree,theta_ingroup if self.group=='appr' else 1-theta_ingroup,theta_outgroup if self.group=='appr' else 1-theta_outgroup),1)
+        common_rhetoric = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup),1)
         
         if common_rhetoric > rhet_thresh:
             self.action_code = 1 if op >= 0.5 else 0
@@ -607,7 +598,7 @@ class Player():
                     theta_outgroup = self.pseudo_update_posteriors[institution.type]['outgroup']
                     theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
                     theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
-                    opt_rhetoric[institution.type] = min(self.opt_rhetoric_intensity_func(env,op_degree,theta_ingroup if self.group=='appr' else 1-theta_ingroup,theta_outgroup if self.group=='appr' else 1-theta_outgroup),1)
+                    opt_rhetoric[institution.type] = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup),1)
             
             if single_institution_env:
                 common_rhetoric = next(iter(opt_rhetoric.values()))

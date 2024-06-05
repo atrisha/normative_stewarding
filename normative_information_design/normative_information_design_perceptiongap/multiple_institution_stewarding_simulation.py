@@ -37,9 +37,10 @@ if __name__ == "__main__":
                                                                       'only_intensive': True,
                                                                       'homogenous_priors': True,
                                                                       'num_players':100,
-                                                                      'alpha':0.1,
-                                                                      'outgroup_rhetoric_intensity':0.3,
-                                                                      'normal_constr_w':0.3,
+                                                                      'alpha':0.6,
+                                                                      'lambda_ougroup':0.5,
+                                                                      'lambda_ingroup':1.5,
+                                                                      'normal_constr_w':0.1,
                                                                       'num_batches':10,
                                                                       'num_timesteps':100}
     run_param ={'common_prior_appr_input':common_prior_appr_input,
@@ -55,7 +56,7 @@ if __name__ == "__main__":
         run_param['rhetoric_estimation_model'] = pickle.load(open(file_path, "rb"))
     else:
         print('Generating Rhetoric Equilibrium Estimation Model')
-        model = utils.generate_rhetoric_equilibrium_estimation_model()
+        model = utils.generate_rhetoric_equilibrium_estimation_model(run_param)
         run_param['rhetoric_estimation_model'] = model
         pickle.dump(model, open(file_path, "wb"))
     if len(inst_opt_policy) == 0:
@@ -92,6 +93,8 @@ if __name__ == "__main__":
     run_param['extensive_optimal'] = inst_opt_policy['extensive']
     run_param['intensive_optimal'] = inst_opt_policy['intensive']
     perception_gap_information_design.multiple_inst_run(attr_dict=attr_dict,run_param=run_param)
+    if os.path.exists(file_path):
+        os.remove(file_path)
     print('Extensive Stewarding Simulation Complete')
 
 

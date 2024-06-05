@@ -703,7 +703,7 @@ def predict_posterior(model_in, a, b, s):
     pred_mu = min(1,max(0.5,pred_mu)) if group_type == 'appr' else min(0.5,max(0,pred_mu))
     return pred_mu,pred_var
 
-def generate_rhetoric_equilibrium_estimation_model():
+def generate_rhetoric_equilibrium_estimation_model(run_param):
     import numpy as np
     import itertools
     from scipy.optimize import minimize_scalar
@@ -715,8 +715,8 @@ def generate_rhetoric_equilibrium_estimation_model():
     import random
 
     # Defining the function
-    def equation(x, h, o, a, n, j):
-        return min(1,((h * o * (1 - x)) / (a + n - (j * o)))**(1 / x))
+    def equation(x, n, o, a, lambda_in):
+        return min(1,((n * o * lambda_in * (1 - x)) / a )**(1 / x))
 
     # Function to find the max x where the curve crosses the y=x line
     def find_max_x_intersection(params):
@@ -740,14 +740,12 @@ def generate_rhetoric_equilibrium_estimation_model():
         
     
     # Sampling parameter ranges
-    h_samples = np.arange(0.5,1,0.01)  # Samples for h
-    o_samples = np.arange(0.5,1,0.01)  # Samples for o
-    a_values = [0.1, 0.3]               # Fixed values for a
-    n_value = np.linspace(0,1,100)                       # Fixed value for n
-    j_samples = np.arange(0.0,0.5,0.01)  # Samples for j
-
+    prop_samples = np.arange(0.5,1,0.01)  # Samples for h
+    opinion_samples = np.arange(0.5,1,0.01)  # Samples for o
+    alpha_samples = np.arange(0.1,1,0.1)              # Fixed values for a
+    lambda_ingroup_samples = [run_param['attr_dict']['lambda_ingroup']]
     # Generating all combinations of parameters
-    parameter_combinations = list(itertools.product(h_samples, o_samples, a_values, j_samples))
+    parameter_combinations = list(itertools.product(prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples))
     print(len(parameter_combinations))
     parameter_combinations = random.sample(parameter_combinations, 1000)
     # Calculating the maximum x for each parameter combination
@@ -756,18 +754,8 @@ def generate_rhetoric_equilibrium_estimation_model():
     
     
     for _params in tqdm(parameter_combinations):
-        '''
-        _ord_list = []
-        for n in n_value:
-            params = list(_params)
-            params.insert(3, n)
-            rhet = find_max_x_intersection(params)
-            #rhet_hat = find_max_x_intersection([1-params[4], 1-params[4], params[2], rhet, 1-params[0]])
-            _ord_list.append([abs(rhet - n), _params, rhet])
-        _ord_list.sort(key=lambda x: x[0])
-        '''
         params = list(_params)
-        params.insert(3, (1-params[-1]))
+        #params.insert(3, (1-params[-1]))
         filtered_parameter_combinations.append(params)
         max_x_values_filtered.append(find_max_x_intersection(params))
     
@@ -798,43 +786,31 @@ def generate_rhetoric_equilibrium_estimation_model():
 
 #generate_posterior_prediction_model('appr',0.1)
 #generate_posterior_prediction_model('disappr',0.1)
-'''
-model = generate_rhetoric_equilibrium_estimation_model()
-import matplotlib.pyplot as plt
 
-# Fixed values for h, a, n, j
-h_fixed = 0.7
-a_fixed = 0.3
-n_fixed = 0.4
-j_fixed = 0.3
+def test_rhetoric_equilibrium_estimation():
+    n_fixed = 0.5
+    a_fixed = 0.6
+    lamb_in_fixed = 1.5
 
-def equation(x, h, o, a, n, j):
-    return min(1,((h * o * (1 - x)) / (a + n - (j * o)))**(1 / x))
-# Generating a range of o values for plotting
-o_values_plot = np.linspace(0.5, 1, 100)
-r_values_plot = np.linspace(0, 1, 1000)
+    model = generate_rhetoric_equilibrium_estimation_model({'attr_dict': {'lambda_ingroup': lamb_in_fixed}})
 
-# Creating input data for predictions using the fixed values and varying o
-input_data = np.array([[h_fixed, o, a_fixed, (1-j_fixed),  j_fixed] for o in o_values_plot])
+    o_values_plot = np.linspace(0.5, 1, 100)
+    input_data = np.array([[n_fixed, o, a_fixed, lamb_in_fixed] for o in o_values_plot])
 
-# Predicting the values using the model
-model = pickle.load(open('rhet_eq_estimation.pkl','rb'))
-predicted_values = model.predict(input_data)
-#func_vals = np.array([equation( h_fixed, o_fixed, a_fixed, n_fixed, j_fixed) for x in r_values_plot])
-# Plotting
-plt.figure(figsize=(10, 6))
-plt.plot(o_values_plot, predicted_values, label='Predicted Values', color='blue')
+    file_path = os.path.join(os.getcwd(),'pickles','rhet_eq_estimation.pkl')
+    model = pickle.load(open(file_path,'rb'))
+    predicted_values = model.predict(input_data)
 
-plt.xlabel('o values')
-plt.ylabel('Predicted x values')
-plt.title('Predicted x values vs. o for fixed h, a, n, j')
-plt.legend()
-plt.grid(True)
-#plt.figure()
-#plt.plot(r_values_plot, func_vals, label='Predicted Values', color='black')
-#plt.plot(r_values_plot, r_values_plot, label='Predicted Values', color='black')
-plt.show()
-'''
+    plt.figure(figsize=(10, 6))
+    plt.plot(o_values_plot, predicted_values, label='Predicted Values', color='blue')
+    plt.xlabel('o values')
+    plt.ylabel('Predicted x values')
+    plt.title('Predicted x values vs. o for fixed h, a, n, j')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+#test_rhetoric_equilibrium_estimation()
 '''
 # Step 5: Use Model as Estimator
 def approximate_estimator(model_in, a, b, s):
