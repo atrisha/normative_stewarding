@@ -62,6 +62,8 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
             transition_map[action] = dict()
         actlist_t, actlist_r = [],[]
         repeats = 50
+        if institution.type == 'intensive' and abs(action-0.1) < 0.01:
+            f=1
         for run_iter in np.arange(repeats):
             if max(action_and_state_space) > 0.6:
                 institution.constant_disappr_signal = 0.4 if institution.type == 'extensive' else 0.3
@@ -162,6 +164,8 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                     plt.show()
                     '''
                     ''' common prior is updated based on the action observations '''
+                    if env.print_log:
+                        print(f'Running with signal cluster {signal_cluster} and action {action} and state {state}')
                     observations, reward, terminations, truncations, infos = env.step(actions,run_iter,'transition_genration')
                     
                     f=1
@@ -237,7 +241,7 @@ def run_simulation(institution, signal_type, attr_dict, show_plots=False):
         action_and_state_space = [round(x, 1) for x in np.linspace(0.5, 1, 6)]
     P, R = generate_transition_matrix(action_and_state_space,institution,attr_dict)
 
-    fh = mdptoolbox.mdp.FiniteHorizon(P, R, 0.5, 100)
+    fh = mdptoolbox.mdp.FiniteHorizon(P, R, 0.5, 1000)
     #fh = mdptoolbox.mdp.QLearning(P, R, 0.9)
     fh.run()
     #print([np.round((x+1)/10,1) for x in list(fh.policy)])3.

@@ -42,7 +42,8 @@ if __name__ == "__main__":
                                                                       'lambda_ingroup':1.5,
                                                                       'normal_constr_w':0.1,
                                                                       'num_batches':10,
-                                                                      'num_timesteps':100}
+                                                                      'num_timesteps':100,
+                                                                      'print_log':False}
     run_param ={'common_prior_appr_input':common_prior_appr_input,
                         'common_prior_appr':common_prior_appr,
                         'common_prior_disappr':common_prior_disappr,

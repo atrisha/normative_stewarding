@@ -394,8 +394,12 @@ class parallel_env(ParallelEnv):
                 try:
                     if num_appr > 0:
                         mean_appr_degree = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >= 0.5])
-                        mean_sanctioning_capacity = np.mean([ag.action[3] for ag in self.agents if ag.action[0]!=-1])
+                        _acts = [ag.action[3] for ag in self.agents if ag.action[0]!=-1]
+                        mean_sanctioning_capacity = np.mean(_acts)
                         rewards = 4*mean_appr_degree - 3
+                        if self.print_log:
+                            print(f'appr nums: {num_appr}, disapp nums: {num_disappr} sanctioning capacity: {mean_appr_degree}, rewards: {rewards}')
+
                     else:
                         rewards = -1
                 except ValueError as e:
@@ -524,17 +528,18 @@ class Player():
         rhet =  -1.6425*o**2 + 3.6693*o - 1.3048 
         return min(max(0,rhet),1)
         
-    def opt_rhetoric_intensity_func(self, env, n_p, o, lambda_ingroup):
+    def opt_rhetoric_intensity_func(self, env, n_p, o, lambda_ingroup, exp_op):
         """ This comes from the estimated function of the optimal rhetoric intensity"""
         model = env.rhetoric_estimation_model
         # With the changed model, these are the features prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples
-        rhet_eq = model.predict(np.asarray([n_p, o, env.alpha, lambda_ingroup]).reshape(1,-1))
-        rhet_eq = max(min(rhet_eq,1),0)
+        rhet_eq = model.predict(np.asarray([n_p, exp_op, env.alpha, lambda_ingroup]).reshape(1,-1))
+        rhet_eq = max(min(rhet_eq[0],1),0)
         '''if o > r_comp_thresh:
             return rhet_eq
         else:
             return 0'''
         # The equilibrium above is ex-ante. Now calculate the ex-interim best-response
+
         rhet_br = min(1,((n_p * o * lambda_ingroup * (1 - rhet_eq)) / env.alpha )**(1 / rhet_eq)) if rhet_eq>0 else 0 if (n_p * o * lambda_ingroup) < env.alpha else 1
         return rhet_br
     
@@ -544,7 +549,7 @@ class Player():
         op = self.opinion[self.norm_context]
         mean_from_params = lambda params: params[0]/(params[0]+params[1]) if isinstance(params,tuple) else params
         n_p = self.common_proportion_posterior if isinstance(self.common_proportion_posterior,float) else self.common_proportion_posterior[0]/np.sum(self.common_proportion_posterior)
-        op_degree = op if env.signal_cluster=='appr' else (1-op)
+        op_degree = op if op >= 0.5 else (1-op)
         conc_prop = n_p if op >= 0.5 else (1-n_p)
         opt_rhetoric = dict()
         institution = run_type['institutions']
@@ -553,7 +558,11 @@ class Player():
         theta_outgroup = self.pseudo_update_posteriors[institution.type]['outgroup']
         theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
         theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
-        common_rhetoric = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup),1)
+        if env.signal_cluster == 'appr':
+            exp_op_degree = theta_ingroup if op >= 0.5 else (1-theta_outgroup)
+        else:
+            exp_op_degree = theta_outgroup if op >= 0.5 else (1-theta_ingroup)
+        common_rhetoric = min(self.opt_rhetoric_intensity_func(env, conc_prop, op_degree, env.lambda_ingroup, exp_op_degree),1)
         
         if common_rhetoric > rhet_thresh:
             self.action_code = 1 if op >= 0.5 else 0
@@ -598,7 +607,8 @@ class Player():
                     theta_outgroup = self.pseudo_update_posteriors[institution.type]['outgroup']
                     theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
                     theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
-                    opt_rhetoric[institution.type] = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup),1)
+                    exp_op = None
+                    opt_rhetoric[institution.type] = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup, exp_op),1)
             
             if single_institution_env:
                 common_rhetoric = next(iter(opt_rhetoric.values()))
@@ -847,7 +857,8 @@ class Player():
         else:
             signal_distribution = signal_distribution[1] if env.signal_cluster == 'appr' else signal_distribution[0]
 
-        if institution.type == 'extensive' or (institution.type == 'intensive' and update_type == 'ingroup'):
+        #if institution.type == 'extensive' or (institution.type == 'intensive' and update_type == 'ingroup'):
+        if True:
             try:
                 if round(abs(signal_distribution-common_prior_mean),1) > env.normal_constr_w:
                     common_posterior,common_proportion_posterior =  common_prior, common_proportion_prior
@@ -1119,6 +1130,7 @@ def run_sim_multiple_institution(run_param):
                         f=1
                         raise
     df = pd.DataFrame(state_evolution, columns=cols)
+    file_path = os.path.join(os.getcwd(),'data','multiple_'+run_param['attr_dict']['distr_shape']+'.csv')
     file_path = 'data\\multiple_homo='+str(run_param['attr_dict']['homogenous_priors'])+'_'+run_param['attr_dict']['distr_shape']+'.csv'
     df.to_csv(file_path, mode='w', header=True, index=True)
     print('Done') 
