@@ -88,8 +88,8 @@ if __name__ == "__main__":
             for k,v in inst_opt_policy[inst_type].items():
                 inst_opt_policy[inst_type][k] = {round(float(_k),1):tuple(_v) for _k,_v in inst_opt_policy[inst_type][k].items()}
     run_param['posterior_prediction_model'] = dict()
-    run_param['posterior_prediction_model']['appr'] = pickle.load(open(os.path.join(os.getcwd(),'pickles','approximator_appr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb')))
-    run_param['posterior_prediction_model']['disappr'] = pickle.load(open(os.path.join(os.getcwd(),'pickles','approximator_disappr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb')))
+    #run_param['posterior_prediction_model']['appr'] = pickle.load(open(os.path.join(os.getcwd(),'pickles','approximator_appr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb')))
+    #run_param['posterior_prediction_model']['disappr'] = pickle.load(open(os.path.join(os.getcwd(),'pickles','approximator_disappr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb')))
     run_param['attr_dict']['homogenous_priors'] = False      
     run_param['extensive_optimal'] = inst_opt_policy['extensive']
     run_param['intensive_optimal'] = inst_opt_policy['intensive']

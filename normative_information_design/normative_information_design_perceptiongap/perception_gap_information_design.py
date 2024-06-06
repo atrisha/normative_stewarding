@@ -1077,7 +1077,8 @@ def run_sim_multiple_institution(run_param):
     
     for batch_num in tqdm(np.arange(1, run_param['attr_dict']['num_batches']), desc='Batch Progress', position=0, leave=True):
             env = parallel_env(render_mode='human', attr_dict=run_param['attr_dict'])
-            env.posterior_prediction_model = run_param['posterior_prediction_model']
+            if 'posterior_prediction_model' in run_param:
+                env.posterior_prediction_model = run_param['posterior_prediction_model']
             env.rhetoric_estimation_model = run_param['rhetoric_estimation_model']
             env.reset()
             env.NUM_ITERS = 100
