@@ -118,6 +118,7 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                 if valid_distr:
                     appr_pos_for_ts,disappr_pos_for_ts, prop_for_ts = None, None, None
                     for agent in env.possible_agents:
+                        agent.sampled_institution = institution
                         if math.isnan(agent.common_prior_outgroup[0]/np.sum(agent.common_prior_outgroup)) or math.isnan(agent.common_prior_ingroup[0]/np.sum(agent.common_prior_ingroup)):
                             continue
                         institution.opt_signals = {'disappr': {round(x,1):(institution.constant_disappr_signal,action) if signal_cluster=='appr' else (action,institution.constant_appr_signal) for x in [round(x,1) for x in np.arange(0,0.5,.1)]},
@@ -175,7 +176,7 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                 #print(round(action,1),round(state,1),round(observations[0]/sum(observations),1))
                 #print(round(action,1),round(state,1),round(reward,1))
                 _grp_key = 'appr' if max(action_and_state_space) > 0.6 else 'disappr'
-                next_state = round(observations[_grp_key],1)
+                next_state = np.clip(round(observations[_grp_key],1), min(action_and_state_space), max(action_and_state_space))
                 if next_state is np.NaN or (next_state > 0.5 and max(action_and_state_space)<=0.5):
                     print(observations)
                 try:

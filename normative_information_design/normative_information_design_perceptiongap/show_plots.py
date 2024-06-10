@@ -16,17 +16,18 @@ def single_institution_plots():
 
 
     # Load and label dataframes
-    df_control = read_and_label('data/single_'+'extensive'+'_control_U.csv', 'Control (no stewarding)')
-    df_treatment_extensive = read_and_label('data/single_'+'extensive'+'_treatment_U.csv', 'Extensive inst.')
-    df_treatment_intensive = read_and_label('data/single_'+'intensive'+'_treatment_U.csv', 'Intensive inst.')
+    df_control = read_and_label(os.path.join(os.getcwd(),'data','single_'+'extensive'+'_control_U.csv'), 'Control (no stewarding)')
+    df_treatment_extensive = read_and_label(os.path.join(os.getcwd(),'data','single_'+'extensive'+'_treatment_U.csv'), 'Extensive inst.')
+    df_treatment_intensive = read_and_label(os.path.join(os.getcwd(),'data','single_'+'intensive'+'_treatment_U.csv'), 'Intensive inst.')
 
     # Combine all dataframes
 
     df_combined = pd.concat([ df_treatment_extensive, df_treatment_intensive,df_control]).reset_index(drop=True)
-
+    df_combined = df_combined[df_combined['alpha'] >= 0.6]
 
     # Optionally, save the modified DataFrame back to a new CSV file
     df_combined.to_csv('modified_combined_extensive.csv', index=False)
+    
 
     # Plotting
     plt.style.use('ggplot')
@@ -165,5 +166,5 @@ def multiple_institutions_plot():
     plt.show()
     '''
 if __name__ == '__main__':
-    #single_institution_plots()
-    multiple_institutions_plot()
+    single_institution_plots()
+    #multiple_institutions_plot()
