@@ -130,17 +130,17 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                         else:
                             if signal_cluster == 'appr':
                                 if agent.opinion[agent.norm_context] >= 0.5:
-                                    ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'ingroup')
+                                    ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution.opt_signals,agent.common_proportion_prior,'ingroup')
                                     outgroup_posterior = agent.common_prior_outgroup
                                 else:
-                                    outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'outgroup')
+                                    outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution.opt_signals,agent.common_proportion_prior,'outgroup')
                                     ingroup_posterior = agent.common_prior_ingroup
                             else:
                                 if agent.opinion[agent.norm_context] >= 0.5:
-                                    outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'outgroup')                         
+                                    outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution.opt_signals,agent.common_proportion_prior,'outgroup')                         
                                     ingroup_posterior = agent.common_prior_ingroup
                                 else:
-                                    ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'ingroup')  
+                                    ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution.opt_signals,agent.common_proportion_prior,'ingroup')  
                                     outgroup_posterior = agent.common_prior_outgroup
                                     
                         
@@ -166,7 +166,7 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                     ''' common prior is updated based on the action observations '''
                     if env.print_log:
                         print(f'Running with signal cluster {signal_cluster} and action {action} and state {state}')
-                    observations, reward, terminations, truncations, infos = env.step(actions,run_iter,'transition_genration')
+                    observations, reward, terminations, truncations, infos = env.step(actions,run_iter,'transition_generation')
                     
                     f=1
                 else:
@@ -258,7 +258,7 @@ def run_simulation(institution, signal_type, attr_dict, show_plots=False):
         plt.ylabel("State Index")
         plt.show()
 
-    return policy
+    return policy, np.mean(R)
 
 def main():
     if len(sys.argv) != 3:

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import matplotlib.lines as mlines
+import os
 
 def single_institution_plots():
     def read_and_label(file_path, group_label):
@@ -73,7 +74,7 @@ def single_institution_plots():
     plt.show()
 
 def multiple_institutions_plot():
-    file_path = 'data/multiple_homo=False_U.csv'
+    file_path = os.path.join(os.getcwd(),'data','multiple_homo=FalseU.csv')
     df = pd.read_csv(file_path)
     df = df[df['listened_to'] != 'none']
     df_opinion_high = df[df['opinion'] >= 0.5]
@@ -103,7 +104,7 @@ def multiple_institutions_plot():
 
     df_filtered = df[(df['opinion'] > 0.5) & ((df['listened_to'] != 'none') | (df['time_step'] == 0))]
 
-    '''
+    
     # Create a line plot
     plt.figure(figsize=(10, 6))
 
@@ -162,7 +163,7 @@ def multiple_institutions_plot():
     plt.ylabel('Out Belief')
     plt.legend(title='Listened To')
     plt.show()
-
+    '''
 if __name__ == '__main__':
-    single_institution_plots()
-    #multiple_institutions_plot()
+    #single_institution_plots()
+    multiple_institutions_plot()

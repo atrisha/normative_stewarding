@@ -703,6 +703,10 @@ def predict_posterior(model_in, a, b, s):
     pred_mu = min(1,max(0.5,pred_mu)) if group_type == 'appr' else min(0.5,max(0,pred_mu))
     return pred_mu,pred_var
 
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
+
 def generate_rhetoric_equilibrium_estimation_model(run_param):
     import numpy as np
     import itertools
@@ -716,7 +720,7 @@ def generate_rhetoric_equilibrium_estimation_model(run_param):
 
     # Defining the function
     def equation(x, n, o, a, lambda_in):
-        return min(1,((n * o * lambda_in * (1 - x)) / a )**(1 / x))
+        return min(1,((n * o * lambda_in * (1 - x)) / (a-(1-n)*(o*0.5-x)) )**(1 / x))
 
     # Function to find the max x where the curve crosses the y=x line
     def find_max_x_intersection(params):
