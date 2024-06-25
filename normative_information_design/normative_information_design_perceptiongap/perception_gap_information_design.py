@@ -175,7 +175,6 @@ class parallel_env(ParallelEnv):
             for key in attr_dict:
                 setattr(self, key, attr_dict[key])
         self.num_players = 100 if not hasattr(self, 'num_players') else self.num_players
-        self.update_rate = 2
         self.sanc_marginal_target = 0.2
         #self.norm_context_list = ['n1','n2','n3','n4']
         self.norm_context_list = ['n1']
@@ -208,7 +207,7 @@ class parallel_env(ParallelEnv):
         players_private_contexts  = self.players_private_contexts
         for idx,op in enumerate(players_private_contexts): self.possible_agents[idx].norm_context = players_private_contexts[idx]
         
-        distr_params = {'mean_op_degree_apr':0.7,'mean_op_degree_disapr':0.4,'apr_weight':0.5,'SD':0.05} if self.distr_params is None else self.distr_params
+        distr_params = {'mean_op_degree_apr':0.6,'mean_op_degree_disapr':0.4,'apr_weight':0.5,'SD':0.05} if self.distr_params is None else self.distr_params
         distr_shape = 'U' if self.distr_shape is None else self.distr_shape
         ops = self.generate_opinions(distr_shape,distr_params)
         self.num_appr = len([op for op in ops if op >= 0.5])
@@ -451,19 +450,29 @@ class Player():
         if not env.homogenous_priors:
             
             if self.opinion['n1'] >= 0.5:
+                _sample = np.clip(np.random.beta(env.common_prior_appr_input[0],env.common_prior_appr_input[1]),0.5,1)
+                _sample_oth = np.clip(np.random.beta(env.common_prior_appr_input[1],env.common_prior_appr_input[0]),0,0.49)
                 _sum = np.sum(env.common_prior_appr_input)
                 sample = np.random.randint(1,math.ceil(_sum/2))
-                self.common_prior_ingroup = (_sum-sample,sample)
-                self.common_prior_outgroup = (self.common_prior_ingroup[1],self.common_prior_ingroup[0])
-                assert self.common_prior_ingroup[0] >= self.common_prior_ingroup[1], f"Ingroup prior first element should be greater or equal to second. _sum: {_sum}, sample: {sample}"
-                assert self.common_prior_outgroup[0] < self.common_prior_outgroup[1], f"Outgroup prior first element should be less than second. _sum: {_sum}, sample: {sample}"
+                self.common_prior_ingroup = utils.est_beta_from_mu_sigma(_sample,0.1)
+                self.common_prior_outgroup = utils.est_beta_from_mu_sigma(_sample_oth,0.1)
+                assert self.common_prior_ingroup[0] >= self.common_prior_ingroup[1], f"Ingroup prior first element should be greater or equal to second. ingroup: {self.common_prior_ingroup}, sample: {_sample}"
+                assert self.common_prior_outgroup[0] < self.common_prior_outgroup[1], f"Outgroup prior first element should be less than second. outgroup: {self.common_prior_outgroup}, sample: {_sample}"
             else:
+                '''
                 _sum = np.sum(env.common_prior_appr_input)
                 sample = np.random.randint(1,math.ceil(_sum/2))
                 self.common_prior_outgroup = (_sum-sample,sample)
                 self.common_prior_ingroup = (self.common_prior_outgroup[1],self.common_prior_outgroup[0])
-                assert self.common_prior_ingroup[0] < self.common_prior_ingroup[1], f"Ingroup prior first element should be less than to second. _sum: {_sum}, sample: {sample}"
-                assert self.common_prior_outgroup[0] >= self.common_prior_outgroup[1], f"Outgroup prior first element should be greater than equal second. _sum: {_sum}, sample: {sample}"
+                '''
+                _sample_oth = np.clip(np.random.beta(env.common_prior_appr_input[0],env.common_prior_appr_input[1]),0.5,1)
+                _sample = np.clip(np.random.beta(env.common_prior_appr_input[1],env.common_prior_appr_input[0]),0,0.49)
+                _sum = np.sum(env.common_prior_appr_input)
+                sample = np.random.randint(1,math.ceil(_sum/2))
+                self.common_prior_ingroup = utils.est_beta_from_mu_sigma(_sample,0.1)
+                self.common_prior_outgroup = utils.est_beta_from_mu_sigma(_sample_oth,0.1)
+                assert self.common_prior_ingroup[0] < self.common_prior_ingroup[1], f"Ingroup prior first element should be greater or equal to second. ingroup: {self.common_prior_ingroup}, sample: {_sample}"
+                assert self.common_prior_outgroup[0] >= self.common_prior_outgroup[1], f"Outgroup prior first element should be less than second. outgroup: {self.common_prior_outgroup}, sample: {_sample}"
             self.common_prior_outgroup_init = self.common_prior_outgroup[0]/np.sum(self.common_prior_outgroup)
             self.common_posterior_ingroup = self.common_prior_ingroup
             self.common_posterior_outgroup = self.common_prior_outgroup
@@ -494,7 +503,7 @@ class Player():
         rhet =  -1.6425*o**2 + 3.6693*o - 1.3048 
         return min(max(0,rhet),1)
         
-    def opt_rhetoric_intensity_func(self, env, n_p, o, lambda_ingroup, exp_op):
+    def opt_rhetoric_intensity_func(self, env, n_p, o, lambda_ingroup, exp_op, lambda_outgroup):
         """ This comes from the estimated function of the optimal rhetoric intensity"""
         model = env.rhetoric_estimation_model
         if env.tailored_alpha:
@@ -502,7 +511,7 @@ class Player():
         else:
             alpha = env.alpha
         # With the changed model, these are the features prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples
-        rhet_eq = model.predict(np.asarray([n_p, exp_op, alpha, lambda_ingroup]).reshape(1,-1))
+        rhet_eq = model.predict(np.asarray([n_p, exp_op, alpha, lambda_ingroup, lambda_outgroup]).reshape(1,-1))
         rhet_eq = max(min(rhet_eq[0],1),0)
         '''if o > r_comp_thresh:
             return rhet_eq
@@ -514,7 +523,7 @@ class Player():
         else:
             alpha = env.alpha
         
-        denominator = alpha - (1 - n_p) * (o * 0.5 - rhet_eq)
+        denominator = alpha - (1 - n_p) * (o * lambda_outgroup**rhet_eq)
         # Avoid division by very small numbers
         if abs(denominator) < 1e-10:
             denominator = 1e-10
@@ -551,11 +560,11 @@ class Player():
         theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
         theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
         if env.signal_cluster == 'appr':
-            exp_op_degree = theta_ingroup if op >= 0.5 else (1-theta_outgroup)
+            exp_op_degree = theta_ingroup if op >= 0.5 else theta_outgroup
         else:
-            exp_op_degree = theta_outgroup if op >= 0.5 else (1-theta_ingroup)
+            exp_op_degree = (1-theta_outgroup) if op >= 0.5 else (1-theta_ingroup)
         exp_op_degree = exp_op_degree if exp_op_degree >= 0.5 else (1-exp_op_degree)
-        common_rhetoric = min(self.opt_rhetoric_intensity_func(env, conc_prop, op_degree, env.lambda_ingroup, exp_op_degree),1)
+        common_rhetoric = min(self.opt_rhetoric_intensity_func(env, conc_prop, op_degree, env.lambda_ingroup, exp_op_degree, env.lambda_outgroup),1)
         
         if common_rhetoric > rhet_thresh:
             self.action_code = 1 if op >= 0.5 else 0
@@ -582,6 +591,8 @@ class Player():
         rhet_thresh = self.rhet_thresh
         u_bar = env.security_util
         op = self.opinion[self.norm_context]
+        if op >= 0.5 and op<0.65:
+            f=1
         mean_from_params = lambda params: params[0]/(params[0]+params[1]) if isinstance(params,tuple) else params
         n_p = self.common_proportion_posterior if isinstance(self.common_proportion_posterior,float) else self.common_proportion_posterior[0]/np.sum(self.common_proportion_posterior)
         op_degree = op if op >= 0.5 else (1-op)
@@ -596,6 +607,7 @@ class Player():
             theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
             theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
             ''' Randomly samply an ingroup or outgroup signal. Both have been updated in the pseudo-posterior'''
+            '''
             if op >= 0.5:
                 sampled_signal = np.random.choice(['appr', 'disappr'], p=[institution.sampling_ratio['appr'], institution.sampling_ratio['disappr']])
             else:
@@ -603,14 +615,13 @@ class Player():
             if sampled_signal == 'appr':
                 exp_op_degree = theta_ingroup if op >= 0.5 else theta_outgroup
             else:
-                exp_op_degree = (1-theta_outgroup) if op >= 0.5 else (1-theta_ingroup)
+                exp_op_degree = 1-theta_outgroup if op >= 0.5 else 1-theta_ingroup
+            '''
+            exp_op_degree = n_p*theta_ingroup + (1-n_p)*(1-theta_outgroup) if op >= 0.5 else n_p*(1-theta_ingroup) + (1-n_p)*theta_outgroup
             
-            if op >= 0.5 and op < 0.65 and self.sampled_institution.type == 'intensive' and sampled_signal == 'disappr':
-                f=1
-
             exp_op_degree = exp_op_degree if exp_op_degree >= 0.5 else (1-exp_op_degree)
         
-            opt_rhetoric[institution.type] = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup, exp_op_degree),1)
+            opt_rhetoric[institution.type] = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup, exp_op_degree, env.lambda_outgroup),1)
             
             common_rhetoric = next(iter(opt_rhetoric.values()))
             if common_rhetoric > rhet_thresh:
@@ -707,6 +718,8 @@ class Player():
             This method updates the posterior for the population (posterior over the rate of approval) based on the signal dristribution.
             Since signal distribution is a Bernoulli, we can get individual realizations of 0 and 1 separately, and then take the expectation.
         '''
+        if not env.homogenous_priors:
+            signal_distribution = np.clip(np.random.normal(signal_distribution,0.05),0,0.49) if signal_distribution < 0.5 else np.clip(np.random.normal(signal_distribution,0.05),0.5,1)
         if valid_dist:
             if not hasattr(env,'posterior_prediction_model'):
                 def _post(x,priors_rescaled,likelihood_rescaled):
@@ -811,8 +824,8 @@ class Player():
         else:
             signal_distribution = signal_distribution[1] if self.opinion[self.norm_context] >= 0.5 else signal_distribution[0]
 
-        if self.sampled_institution.type == 'extensive' or (self.sampled_institution.type == 'intensive' and update_type == 'ingroup'):
-        #if True:
+        #if self.sampled_institution.type == 'extensive' or (self.sampled_institution.type == 'intensive' and update_type == 'ingroup'):
+        if True:
             try:
                 if np.round(abs(signal_distribution-common_prior_mean),1) > env.normal_constr_w:
                     common_posterior,common_proportion_posterior =  common_prior, common_proportion_prior
@@ -845,10 +858,11 @@ class Player():
                 expected_posterior_for_state_x = all_posteriors
                 exp_x = (x_range * expected_posterior_for_state_x).sum()
                 var_x = gaussian_distribution.var()
+                exp_x = np.clip(exp_x, 0, 0.49) if common_prior[0] / sum(common_prior) < 0.5 else np.clip(exp_x, 0.5, 1)
             else:
                 model = env.posterior_prediction_model[group_type]
                 exp_x, var_x = utils.predict_posterior(model, common_prior[0], common_prior[1], signal_distribution)
-                f=1
+                
             '''
             print(exp_x)
             plt.figure()
@@ -858,27 +872,28 @@ class Player():
             plt.title('likelihood:'+str(signal_distribution)+','+str(self.common_prior[0]/sum(self.common_prior)))
             plt.show()
             '''
-            common_posterior = utils.est_beta_from_mu_sigma(exp_x, var_x)
+            common_posterior = utils.est_beta_from_mu_sigma(exp_x, var_x, env.inst_update_rate)
             if self.opinion[self.norm_context] >= 0.5:
                 if (update_type=='ingroup' and common_posterior[0]<common_posterior[1]) or (update_type=='outgroup' and common_posterior[0]>common_posterior[1]):
                     f=1
             else:    
                 if (update_type=='ingroup' and common_posterior[0]>common_posterior[1]) or (update_type=='outgroup' and common_posterior[0]<common_posterior[1]):
                     f=1   
-        ''' Sanity check '''
-        _param_min = np.min(common_posterior)
-        if _param_min < 1:
-            _diff = 1-_param_min
-            common_posterior = (common_posterior[0]+_diff,common_posterior[1]+_diff)
+
+        
         common_proportion_posterior = common_proportion_prior[0]/np.sum(common_proportion_prior)
         if update_type == 'outgroup':
             _c = common_posterior[0]/np.sum(common_posterior)
             if (_c-0.5)*(self.opinion[self.norm_context]-0.5) > 0:
-                f=1
+                print(f'Current state: {curr_state}, Opt signal: {str(opt_signals)}')
+                print(f'Exp: {exp_x}, Var: {var_x}, Posterior: {common_posterior}')
+                assert False, f"Outgroup update should not result in inconsistent opinion beliefs. Agent id: {self.id} Opinion: {self.opinion[self.norm_context]}, Posterior: {common_posterior}"
         else:
             _c = common_posterior[0]/np.sum(common_posterior)
-            if (_c-0.5)*(self.opinion[self.norm_context]-0.5) <= 0:
-                f=1
+            if (_c-0.5)*(self.opinion[self.norm_context]-0.5) < 0:
+                print(f'Current state: {curr_state}, Opt signal: {str(opt_signals)}')
+                print(f'Exp: {exp_x}, Var: {var_x}, Posterior: {common_posterior}')
+                assert False, f"Ingroup update should not result in inconsistent opinion beliefs. Agent id: {self.id} Opinion: {self.opinion[self.norm_context]}, Posterior: {common_posterior}"
         return common_posterior, common_proportion_posterior
         ''' Generate posteriors for norm support '''
         '''
@@ -903,12 +918,16 @@ class AgentPersona:
         self.rewards = {'extensive': 0, 'intensive': 0}
         self.counts = {'extensive': 0, 'intensive': 0}
         self.total_pulls = 0
+        self.last_pulled = None
 
     def pull(self):
         """
         Pulls the slot machine based on the UCB algorithm.
         Returns the name of the pulled slot machine.
         """
+        # If none of the arms have been pulled, pull randomly
+        if max(list(self.rewards.values())) <= 0:
+            return np.random.choice(list(self.rewards.keys()))
         # If any arm has not been pulled yet, pull it
         for arm in self.counts:
             if self.counts[arm] == 0:
@@ -919,7 +938,9 @@ class AgentPersona:
             arm: self.rewards[arm] / self.counts[arm] + math.sqrt(2 * math.log(self.total_pulls) / self.counts[arm])
             for arm in self.counts
         }
-        return max(ucb_values, key=ucb_values.get)
+        pulled = max(ucb_values, key=ucb_values.get)
+        self.last_pulled = pulled
+        return pulled
 
     def update_rewards(self, listened_to):
         """
@@ -930,9 +951,8 @@ class AgentPersona:
         if listened_to in self.rewards:
             self.rewards[listened_to] += 1
         else:
-            self.rewards[self.agent.sampled_institution.type] += 0
-        if listened_to in self.counts:
-            self.counts[listened_to] += 1
+            self.rewards[self.agent.sampled_institution.type] += -1
+        self.counts[self.agent.sampled_institution.type] += 1
         self.total_pulls += 1
         
         
@@ -1096,8 +1116,13 @@ def run_sim_multiple_institution(run_param):
                 for ag in env.possible_agents:
                     state_evolution.append([0,0,ag.opinion[ag.norm_context],ag.common_posterior_outgroup[0]/np.sum(ag.common_posterior_outgroup),ag.common_posterior_ingroup[0]/np.sum(ag.common_posterior_ingroup),'treatment',env.normal_constr_w,env.alpha,-1,'none'])
             for ts in (np.arange(1, run_param['attr_dict']['num_timesteps'])):
-                
-                                                                   
+                out_bel_plots = [ag.common_prior_outgroup[0]/np.sum(ag.common_prior_outgroup) for ag in env.possible_agents if ag.opinion[ag.norm_context] >= 0.5]
+                '''
+                plt.figure()
+                plt.hist(out_bel_plots)
+                plt.title(f'Outgroup belief at time step {ts}')
+                plt.show()
+                '''                                                   
                 #print('Progress: batch_num:', batch_num, 'ts:', ts, 'out of 100')
                 mean_common_prior_ingroup_var = np.mean([utils.beta_var(agent.common_prior_ingroup[0],agent.common_prior_ingroup[1]) for agent in env.possible_agents])
                 mean_common_prior_outgroup_var = np.mean([utils.beta_var(agent.common_prior_outgroup[0],agent.common_prior_outgroup[1]) for agent in env.possible_agents])
@@ -1109,7 +1134,8 @@ def run_sim_multiple_institution(run_param):
                     if math.isnan(agent.common_prior_outgroup[0]/np.sum(agent.common_prior_outgroup)) or math.isnan(agent.common_prior_ingroup[0]/np.sum(agent.common_prior_ingroup)):
                         raise Exception('Nan in common prior')
                     
-                    if env.homogenous_priors and appr_pos_for_ts is not None and disappr_pos_for_ts is not None:
+                    #if env.homogenous_priors and appr_pos_for_ts is not None and disappr_pos_for_ts is not None:
+                    if False:
                         ingroup_posterior = appr_pos_for_ts if agent.opinion[agent.norm_context] >= 0.5 else disappr_pos_for_ts
                         outgroup_posterior = disappr_pos_for_ts if agent.opinion[agent.norm_context] >= 0.5 else appr_pos_for_ts
                         agent.common_proportion_prior = prop_for_ts
@@ -1120,7 +1146,8 @@ def run_sim_multiple_institution(run_param):
                         outgroup_posterior_extensive, agent.common_proportion_posterior = agent.generate_posteriors(env,sampled_institution.opt_signals,agent.common_proportion_prior,'outgroup')
                         ingroup_posterior_extensive, agent.common_proportion_posterior = agent.generate_posteriors(env,sampled_institution.opt_signals,agent.common_proportion_prior,'ingroup')
 
-                    if env.homogenous_priors:
+                    #if env.homogenous_priors:
+                    if False:
                         if appr_pos_for_ts is None:
                             appr_pos_for_ts = ingroup_posterior if agent.opinion[agent.norm_context] >= 0.5 else outgroup_posterior
                             prop_for_ts = agent.common_proportion_posterior
@@ -1135,7 +1162,7 @@ def run_sim_multiple_institution(run_param):
                 
                 for ag in env.possible_agents:
                     if ag.opinion[ag.norm_context] >= 0.5:
-                        print(f'Batch: {batch_num} TS:{ts} Agent {ag.id} opinion {ag.opinion[ag.norm_context]} persona info reward {env.agent_personas[ag.id].rewards} count {env.agent_personas[ag.id].counts} total pulls {env.agent_personas[ag.id].total_pulls}')
+                        print(f'Batch: {batch_num} TS:{ts} Agent {ag.id} opinion {ag.opinion[ag.norm_context]} beliefs out,in {ag.common_prior_outgroup[0]/np.sum(ag.common_prior_outgroup), ag.common_prior_ingroup[0]/np.sum(ag.common_prior_ingroup)} persona info reward {env.agent_personas[ag.id].rewards} count {env.agent_personas[ag.id].counts} total pulls {env.agent_personas[ag.id].total_pulls}')
                     try:
                         state_evolution.append([batch_num,ts,ag.opinion[ag.norm_context],ag.common_prior_outgroup[0]/np.sum(ag.common_prior_outgroup),ag.common_prior_ingroup[0]/np.sum(ag.common_prior_ingroup),'treatment',env.normal_constr_w,env.alpha,ag.action_code,ag.listened_to])
                     except IndexError:

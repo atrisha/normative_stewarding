@@ -37,15 +37,17 @@ if __name__ == "__main__":
                                                                       'common_prior_disappr': common_prior_disappr,
                                                                       'common_proportion_prior': common_proportion_prior,
                                                                       'common_prior_appr_input': common_prior_appr_input,
-                                                                      'only_intensive': True,
+                                                                      'only_intensive': False,
                                                                       'homogenous_priors': True,
                                                                       'num_players':100,
-                                                                      'alpha':0.7,
+                                                                      'alpha':0.5,
                                                                       'tailored_alpha':False,
-                                                                      'lambda_ougroup':0.5,
+                                                                      'lambda_outgroup':0.5,
                                                                       'lambda_ingroup':1.5,
-                                                                      'normal_constr_w':0.1,
-                                                                      'rhet_thresh_mean':0.3,
+                                                                      'normal_constr_w':0.2,
+                                                                      'rhet_thresh_mean':0.5,
+                                                                      'update_rate':0.2,
+                                                                      'inst_update_rate':0.2,
                                                                       'num_batches':10,
                                                                       'num_timesteps':100,
                                                                       'print_log':False,
@@ -55,7 +57,6 @@ if __name__ == "__main__":
                         'common_prior_disappr':common_prior_disappr,
                         'common_proportion_prior':common_proportion_prior,
                         'normal_constr_w':attr_dict['normal_constr_w'],
-                        'only_intensive':True,
                         'credible':True}
     run_param['attr_dict'] = attr_dict
     file_path = os.path.join(os.getcwd(),'pickles','rhet_eq_estimation.pkl')
@@ -106,14 +107,14 @@ if __name__ == "__main__":
     #run_param['posterior_prediction_model'] = dict()
     #run_param['posterior_prediction_model']['appr'] = pickle.load(open(os.path.join(os.getcwd(),'pickles','approximator_appr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb')))
     #run_param['posterior_prediction_model']['disappr'] = pickle.load(open(os.path.join(os.getcwd(),'pickles','approximator_disappr_'+str(run_param['normal_constr_w']).replace('.','-')+'.pkl','rb')))
-    run_param['attr_dict']['homogenous_priors'] = True      
-    run_param['attr_dict']['tailored_alpha'] = True   
+    run_param['attr_dict']['homogenous_priors'] = False      
+    run_param['attr_dict']['tailored_alpha'] = False   
     run_param['extensive_optimal'] = inst_opt_policy['extensive']
     run_param['intensive_optimal'] = inst_opt_policy['intensive']
     run_param['inst_sampling_ratios'] = inst_sampling_ratios
-    #perception_gap_information_design.multiple_inst_run(attr_dict=attr_dict,run_param=run_param)
+    perception_gap_information_design.multiple_inst_run(attr_dict=attr_dict,run_param=run_param)
     
-    perception_gap_information_design.run_sim_single_institution(run_param)
+    #perception_gap_information_design.run_sim_single_institution(run_param)
     
     if os.path.exists(file_path):
         os.remove(file_path)

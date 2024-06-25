@@ -467,7 +467,7 @@ def generate_correleted_opinions(marginal_params,correlation_val,size):
     samples = np.column_stack([x1_trans,x2_trans])
     return samples
 
-def est_beta_from_mu_sigma(mu, variance):
+def est_beta_from_mu_sigma(mu, variance, update_rate=None):
     if abs(mu-1) < 10**-6:
         return (1,0)
     elif mu < 10**-6:
@@ -490,10 +490,14 @@ def est_beta_from_mu_sigma(mu, variance):
         assert (mu-0.5)*(mu_check-0.5) >= 0, "mu_check failed: mu = {}, mu_check = {}".format(mu, mu_check)
         _param_min = np.min((alpha, beta))
         if _param_min < 1:
-            _diff = 1-_param_min
-            alpha, beta = (alpha+_diff,beta+_diff)
-            mu_check = alpha / (alpha + beta)
+            mu_cross_100 = mu*100
+            _alpha,_beta = np.clip(mu_cross_100,10**-3,100-10**-6),np.clip(100-mu_cross_100,10**-3,100-10**-3)
+            alpha = _alpha/min(_alpha,_beta)
+            beta = _beta/min(_alpha,_beta)
             assert (mu-0.5)*(mu_check-0.5) >= 0, "mu_check failed: mu = {}, mu_check = {}, alpha ={}, beta = {}".format(mu, mu_check, alpha, beta)
+        if update_rate is not None:
+            alpha = alpha/(alpha+beta) * update_rate
+            beta = update_rate - alpha
         return (alpha, beta)
 
 
@@ -719,8 +723,8 @@ def generate_rhetoric_equilibrium_estimation_model(run_param):
     import random
 
     # Defining the function
-    def equation(x, n, o, a, lambda_in):
-        return min(1,((n * o * lambda_in * (1 - x)) / (a-(1-n)*(o*0.5-x)) )**(1 / x))
+    def equation(x, n, o, a, lambda_in, lambda_out):
+        return min(1,((n * o * lambda_in * (1 - x)) / (a-(1-n)*(o*lambda_out**x)) )**(1 / x))
 
     # Function to find the max x where the curve crosses the y=x line
     def find_max_x_intersection(params):
@@ -748,8 +752,9 @@ def generate_rhetoric_equilibrium_estimation_model(run_param):
     opinion_samples = np.arange(0.5,1,0.01)  # Samples for o
     alpha_samples = np.arange(0.1,1,0.1)              # Fixed values for a
     lambda_ingroup_samples = [run_param['attr_dict']['lambda_ingroup']]
+    lambda_outgroup_samples = [run_param['attr_dict']['lambda_outgroup']]
     # Generating all combinations of parameters
-    parameter_combinations = list(itertools.product(prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples))
+    parameter_combinations = list(itertools.product(prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples, lambda_outgroup_samples))
     print(len(parameter_combinations))
     parameter_combinations = random.sample(parameter_combinations, 1000)
     # Calculating the maximum x for each parameter combination

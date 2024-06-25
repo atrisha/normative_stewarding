@@ -48,7 +48,7 @@ def get_index(value, state_space):
     #index = int(np.floor(adjusted_value * (len(state_space) - 0.00001)))
     return min(index, len(state_space) - 1)  # Ensure index is within bounds
 
-intensive_outgroup_optimal = {0.0: 0.0, 0.1: 0.0, 0.2: 0.0, 0.3: 0.0, 0.4: 0.0, 0.5: 0.0}
+#intensive_outgroup_optimal = {0.0: 0.0, 0.1: 0.0, 0.2: 0.0, 0.3: 0.0, 0.4: 0.0, 0.5: 0.0}
 
 def generate_transition_matrix(action_and_state_space,institution,attr_dict):
     
@@ -65,10 +65,8 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
         if institution.type == 'intensive' and abs(action-0.1) < 0.01:
             f=1
         for run_iter in np.arange(repeats):
-            if max(action_and_state_space) > 0.6:
-                institution.constant_disappr_signal = 0.4 if institution.type == 'extensive' else 0.3
-            else:
-                institution.constant_appr_signal = 0.6
+            institution.constant_disappr_signal = 0.4 if institution.type == 'extensive' else 0.3
+            institution.constant_appr_signal = 0.5 if institution.type == 'extensive' else 0.7
             env = parallel_env(render_mode='human', attr_dict=attr_dict)
             env.signal_cluster = signal_cluster
             env.rhetoric_estimation_model = attr_dict['rhetoric_estimation_model']
@@ -121,8 +119,8 @@ def generate_transition_matrix(action_and_state_space,institution,attr_dict):
                         agent.sampled_institution = institution
                         if math.isnan(agent.common_prior_outgroup[0]/np.sum(agent.common_prior_outgroup)) or math.isnan(agent.common_prior_ingroup[0]/np.sum(agent.common_prior_ingroup)):
                             continue
-                        institution.opt_signals = {'disappr': {round(x,1):(institution.constant_disappr_signal,action) if signal_cluster=='appr' else (action,institution.constant_appr_signal) for x in [round(x,1) for x in np.arange(0,0.5,.1)]},
-                                        'appr': {round(x,1):(institution.constant_disappr_signal,action) if signal_cluster=='appr' else (action,institution.constant_appr_signal) for x in [round(x,1) for x in np.arange(0.5,1.1,.1)]}
+                        institution.opt_signals = {'disappr': {round(x,1):(institution.constant_disappr_signal,action) if agent.opinion[agent.norm_context] >= 0.5 else (action,institution.constant_disappr_signal) for x in [round(x,1) for x in np.arange(0,0.5,.1)]},
+                                        'appr': {round(x,1):(institution.constant_appr_signal,action) if agent.opinion[agent.norm_context] >= 0.5 else (action,institution.constant_appr_signal) for x in [round(x,1) for x in np.arange(0.5,1.1,.1)]}
                                         }   
                         if env.homogenous_priors and appr_pos_for_ts is not None and disappr_pos_for_ts is not None:
                             ingroup_posterior = appr_pos_for_ts if agent.opinion[agent.norm_context] >= 0.5 else disappr_pos_for_ts
