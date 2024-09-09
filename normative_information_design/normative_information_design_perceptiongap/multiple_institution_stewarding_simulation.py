@@ -59,6 +59,7 @@ if __name__ == "__main__":
                         'normal_constr_w':attr_dict['normal_constr_w'],
                         'credible':True}
     run_param['attr_dict'] = attr_dict
+    ''' This is a regression model constructed to estimate the equilibrium rhetoric. This is done to make the simulation more efficient.'''
     file_path = os.path.join(os.getcwd(),'pickles','rhet_eq_estimation.pkl')
     if os.path.exists(file_path):
         run_param['rhetoric_estimation_model'] = pickle.load(open(file_path, "rb"))
@@ -68,6 +69,9 @@ if __name__ == "__main__":
         run_param['rhetoric_estimation_model'] = model
         pickle.dump(model, open(file_path, "wb"))
     
+    ''' 
+    If the optimal policy and sampling ratios have not been generated, the run the simulation to solve the optimal policy and store that in the json file.
+    '''
     if len(inst_opt_policy) == 0 or len(inst_sampling_ratios) == 0:
         for inst_type in ['intensive','extensive']:
             attr_dict['extensive'] = True if inst_type=='extensive' else False
