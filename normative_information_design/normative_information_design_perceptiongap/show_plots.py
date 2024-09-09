@@ -51,8 +51,8 @@ def single_institution_plots():
     # Disappr Belief plot on the same axes for direct comparison
     sns.lineplot(data=df_combined, x='time_step', y='disappr_belief', hue='alpha', style='group',
                 estimator='mean', ci="sd", 
-                legend='full',palette='bright')
-
+                legend='full',palette='bright',linewidth=3)
+    plt.tick_params(axis='both', which='major', labelsize=20)
     axs.set_title('Mean Outgroup and Ingroup Belief over Time within a population (of approvers)')
     axs.set_xlabel('Time Step')
     axs.set_ylabel('Mean Belief')
@@ -182,7 +182,8 @@ def multiple_institutions_plot():
     # Group by 'listened_to' and 'opinion_group', then calculate mean and SD
     stats_df = df.groupby(['listened_to', 'opinion_group']).agg({
         'opinion': ['mean', 'std'],
-        'out_belief': ['mean', 'std']
+        'out_belief': ['mean', 'std'],
+        'in_belief': ['mean', 'std']  # Added in_belief here
     })
 
     # Print the summary statistics
@@ -204,6 +205,7 @@ def multiple_institutions_plot():
                 # Perform t-tests
                 t_stat_opinion, p_val_opinion = ttest_ind(data1['opinion'], data2['opinion'], equal_var=False, nan_policy='omit')
                 t_stat_out_belief, p_val_out_belief = ttest_ind(data1['out_belief'], data2['out_belief'], equal_var=False, nan_policy='omit')
+                t_stat_in_belief, p_val_in_belief = ttest_ind(data1['in_belief'], data2['in_belief'], equal_var=False, nan_policy='omit')  # Added t-test for in_belief
                 
                 # Calculate Cohen's d
                 n1, n2 = len(data1['opinion']), len(data2['opinion'])
@@ -215,6 +217,10 @@ def multiple_institutions_plot():
                 pooled_sd_out_belief = np.sqrt(((n1-1) * s1**2 + (n2-1) * s2**2) / (n1 + n2 - 2))
                 cohens_d_out_belief = (data1['out_belief'].mean() - data2['out_belief'].mean()) / pooled_sd_out_belief
 
+                s1, s2 = data1['in_belief'].std(), data2['in_belief'].std()  # Compute standard deviations for in_belief
+                pooled_sd_in_belief = np.sqrt(((n1-1) * s1**2 + (n2-1) * s2**2) / (n1 + n2 - 2))
+                cohens_d_in_belief = (data1['in_belief'].mean() - data2['in_belief'].mean()) / pooled_sd_in_belief  # Compute Cohen's d for in_belief
+
                 # Collect t-test results
                 t_test_results.append({
                     'comparison': f"{cat1} vs {cat2}",
@@ -223,8 +229,11 @@ def multiple_institutions_plot():
                     'opinion_p_value': p_val_opinion,
                     'out_belief_t_stat': t_stat_out_belief,
                     'out_belief_p_value': p_val_out_belief,
+                    'in_belief_t_stat': t_stat_in_belief,  # Added in_belief t-stat
+                    'in_belief_p_value': p_val_in_belief,  # Added in_belief p-value
                     'cohens_d_opinion': cohens_d_opinion,
-                    'cohens_d_out_belief': cohens_d_out_belief
+                    'cohens_d_out_belief': cohens_d_out_belief,
+                    'cohens_d_in_belief': cohens_d_in_belief  # Added Cohen's d for in_belief
                 })
 
     # Convert t-test results to DataFrame
