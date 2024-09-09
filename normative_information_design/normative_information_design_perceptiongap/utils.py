@@ -467,7 +467,7 @@ def generate_correleted_opinions(marginal_params,correlation_val,size):
     samples = np.column_stack([x1_trans,x2_trans])
     return samples
 
-def est_beta_from_mu_sigma(mu, variance):
+def est_beta_from_mu_sigma(mu, variance, update_rate=None):
     if abs(mu-1) < 10**-6:
         return (1,0)
     elif mu < 10**-6:
@@ -490,10 +490,14 @@ def est_beta_from_mu_sigma(mu, variance):
         assert (mu-0.5)*(mu_check-0.5) >= 0, "mu_check failed: mu = {}, mu_check = {}".format(mu, mu_check)
         _param_min = np.min((alpha, beta))
         if _param_min < 1:
-            _diff = 1-_param_min
-            alpha, beta = (alpha+_diff,beta+_diff)
-            mu_check = alpha / (alpha + beta)
+            mu_cross_100 = mu*100
+            _alpha,_beta = np.clip(mu_cross_100,10**-3,100-10**-6),np.clip(100-mu_cross_100,10**-3,100-10**-3)
+            alpha = _alpha/min(_alpha,_beta)
+            beta = _beta/min(_alpha,_beta)
             assert (mu-0.5)*(mu_check-0.5) >= 0, "mu_check failed: mu = {}, mu_check = {}, alpha ={}, beta = {}".format(mu, mu_check, alpha, beta)
+        if update_rate is not None:
+            alpha = alpha/(alpha+beta) * update_rate
+            beta = update_rate - alpha
         return (alpha, beta)
 
 
@@ -503,17 +507,35 @@ class Gaussian_plateu_distribution():
         self.mu = mu
         self.sigma =sigma
         self.w = w
+        self.root_2_pi_sigma = math.sqrt(2 * math.pi * self.sigma)
+        self.h = 1 / (1 + (self.w / self.root_2_pi_sigma))
     
     def pdf(self,x):
         root_2_pi_sigma = math.sqrt(2*math.pi*self.sigma)
         h = 1/(1+(self.w/root_2_pi_sigma))   
         exponent = lambda x,side : math.exp((-1/(2*self.sigma**2))*(x-self.mu+(self.w/2))**2) if side=='l' else math.exp((-1/(2*self.sigma**2))*(x-self.mu-(self.w/2))**2)
-        if x <= self.mu-(self.w/2):
-            return (h/root_2_pi_sigma)*exponent(x,'l')
-        elif x >= self.mu+(self.w/2):
-            return (h/root_2_pi_sigma)*exponent(x,'r')
+        if isinstance(x, np.ndarray):
+            results = np.zeros_like(x)  # Initialize result array
+            # Calculate for left Gaussian tail
+            left_mask = x <= self.mu - (self.w / 2)
+            results[left_mask] = (self.h / self.root_2_pi_sigma) * np.exp(-0.5 * ((x[left_mask] - self.mu + self.w / 2) / self.sigma) ** 2)
+            
+            # Calculate for right Gaussian tail
+            right_mask = x >= self.mu + (self.w / 2)
+            results[right_mask] = (self.h / self.root_2_pi_sigma) * np.exp(-0.5 * ((x[right_mask] - self.mu - self.w / 2) / self.sigma) ** 2)
+            
+            # Calculate for the plateau region
+            plateau_mask = ~left_mask & ~right_mask
+            results[plateau_mask] = self.h / self.root_2_pi_sigma
+            
+            return results
         else:
-            return h/root_2_pi_sigma
+            if x <= self.mu-(self.w/2):
+                return (h/root_2_pi_sigma)*exponent(x,'l')
+            elif x >= self.mu+(self.w/2):
+                return (h/root_2_pi_sigma)*exponent(x,'r')
+            else:
+                return h/root_2_pi_sigma
         
     def _generate_gaussian_plateau_samples(self, n_samples):
         """
@@ -685,7 +707,11 @@ def predict_posterior(model_in, a, b, s):
     pred_mu = min(1,max(0.5,pred_mu)) if group_type == 'appr' else min(0.5,max(0,pred_mu))
     return pred_mu,pred_var
 
-def generate_rhetoric_equilibrium_estimation_model():
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
+
+def generate_rhetoric_equilibrium_estimation_model(run_param):
     import numpy as np
     import itertools
     from scipy.optimize import minimize_scalar
@@ -697,8 +723,8 @@ def generate_rhetoric_equilibrium_estimation_model():
     import random
 
     # Defining the function
-    def equation(x, h, o, a, n, j):
-        return min(1,((h * o * (1 - x)) / (a + n - (j * o)))**(1 / x))
+    def equation(x, n, o, a, lambda_in, lambda_out):
+        return min(1,((n * o * lambda_in * (1 - x)) / (a-(1-n)*(o*lambda_out**x)) )**(1 / x))
 
     # Function to find the max x where the curve crosses the y=x line
     def find_max_x_intersection(params):
@@ -722,14 +748,13 @@ def generate_rhetoric_equilibrium_estimation_model():
         
     
     # Sampling parameter ranges
-    h_samples = np.arange(0.5,1,0.01)  # Samples for h
-    o_samples = np.arange(0.5,1,0.01)  # Samples for o
-    a_values = [0.1, 0.3]               # Fixed values for a
-    n_value = np.linspace(0,1,100)                       # Fixed value for n
-    j_samples = np.arange(0.0,0.5,0.01)  # Samples for j
-
+    prop_samples = np.arange(0.5,1,0.01)  # Samples for h
+    opinion_samples = np.arange(0.5,1,0.01)  # Samples for o
+    alpha_samples = np.arange(0.1,1,0.1)              # Fixed values for a
+    lambda_ingroup_samples = [run_param['attr_dict']['lambda_ingroup']]
+    lambda_outgroup_samples = [run_param['attr_dict']['lambda_outgroup']]
     # Generating all combinations of parameters
-    parameter_combinations = list(itertools.product(h_samples, o_samples, a_values, j_samples))
+    parameter_combinations = list(itertools.product(prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples, lambda_outgroup_samples))
     print(len(parameter_combinations))
     parameter_combinations = random.sample(parameter_combinations, 1000)
     # Calculating the maximum x for each parameter combination
@@ -738,18 +763,8 @@ def generate_rhetoric_equilibrium_estimation_model():
     
     
     for _params in tqdm(parameter_combinations):
-        '''
-        _ord_list = []
-        for n in n_value:
-            params = list(_params)
-            params.insert(3, n)
-            rhet = find_max_x_intersection(params)
-            #rhet_hat = find_max_x_intersection([1-params[4], 1-params[4], params[2], rhet, 1-params[0]])
-            _ord_list.append([abs(rhet - n), _params, rhet])
-        _ord_list.sort(key=lambda x: x[0])
-        '''
         params = list(_params)
-        params.insert(3, (1-params[-1]))
+        #params.insert(3, (1-params[-1]))
         filtered_parameter_combinations.append(params)
         max_x_values_filtered.append(find_max_x_intersection(params))
     
@@ -775,48 +790,36 @@ def generate_rhetoric_equilibrium_estimation_model():
     print(f"MSE: {mse}")
     print(f"Coefficients: {model.coef_}")
     print(f"Intercept: {model.intercept_}")
-    pickle.dump(model, open('rhet_eq_estimation.pkl','wb'))
+    pickle.dump(model, open(os.path.join(os.getcwd(),'pickles','rhet_eq_estimation.pkl'),'wb'))
     return model
 
 #generate_posterior_prediction_model('appr',0.1)
 #generate_posterior_prediction_model('disappr',0.1)
-'''
-model = generate_rhetoric_equilibrium_estimation_model()
-import matplotlib.pyplot as plt
 
-# Fixed values for h, a, n, j
-h_fixed = 0.7
-a_fixed = 0.3
-n_fixed = 0.4
-j_fixed = 0.3
+def test_rhetoric_equilibrium_estimation():
+    n_fixed = 0.5
+    a_fixed = 0.6
+    lamb_in_fixed = 1.5
 
-def equation(x, h, o, a, n, j):
-    return min(1,((h * o * (1 - x)) / (a + n - (j * o)))**(1 / x))
-# Generating a range of o values for plotting
-o_values_plot = np.linspace(0.5, 1, 100)
-r_values_plot = np.linspace(0, 1, 1000)
+    model = generate_rhetoric_equilibrium_estimation_model({'attr_dict': {'lambda_ingroup': lamb_in_fixed}})
 
-# Creating input data for predictions using the fixed values and varying o
-input_data = np.array([[h_fixed, o, a_fixed, (1-j_fixed),  j_fixed] for o in o_values_plot])
+    o_values_plot = np.linspace(0.5, 1, 100)
+    input_data = np.array([[n_fixed, o, a_fixed, lamb_in_fixed] for o in o_values_plot])
 
-# Predicting the values using the model
-model = pickle.load(open('rhet_eq_estimation.pkl','rb'))
-predicted_values = model.predict(input_data)
-#func_vals = np.array([equation( h_fixed, o_fixed, a_fixed, n_fixed, j_fixed) for x in r_values_plot])
-# Plotting
-plt.figure(figsize=(10, 6))
-plt.plot(o_values_plot, predicted_values, label='Predicted Values', color='blue')
+    file_path = os.path.join(os.getcwd(),'pickles','rhet_eq_estimation.pkl')
+    model = pickle.load(open(file_path,'rb'))
+    predicted_values = model.predict(input_data)
 
-plt.xlabel('o values')
-plt.ylabel('Predicted x values')
-plt.title('Predicted x values vs. o for fixed h, a, n, j')
-plt.legend()
-plt.grid(True)
-#plt.figure()
-#plt.plot(r_values_plot, func_vals, label='Predicted Values', color='black')
-#plt.plot(r_values_plot, r_values_plot, label='Predicted Values', color='black')
-plt.show()
-'''
+    plt.figure(figsize=(10, 6))
+    plt.plot(o_values_plot, predicted_values, label='Predicted Values', color='blue')
+    plt.xlabel('o values')
+    plt.ylabel('Predicted x values')
+    plt.title('Predicted x values vs. o for fixed h, a, n, j')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+#test_rhetoric_equilibrium_estimation()
 '''
 # Step 5: Use Model as Estimator
 def approximate_estimator(model_in, a, b, s):

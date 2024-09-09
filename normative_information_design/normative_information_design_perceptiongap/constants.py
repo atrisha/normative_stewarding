@@ -4,8 +4,10 @@ Created on 19 Aug 2022
 @author: Atrisha
 '''
 import math
-
+import os
 import numpy as np
+import math
+from functools import reduce
 
 alpha = None
 
@@ -61,3 +63,6 @@ risk_tol = None
 def get_maj_opinion():
     return 'A' if sum(cen_true_distr[2:])/sum(cen_true_distr) >= 0.5 else 'D'
 
+
+if __name__ == "__main__":
+    print(os.getcwd())
