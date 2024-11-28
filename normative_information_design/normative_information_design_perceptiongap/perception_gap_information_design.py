@@ -386,9 +386,12 @@ class parallel_env(ParallelEnv):
             except ValueError as e:
                 f=1
                 raise e
-        
-        observations = {'appr':np.mean([utils.beta_mean(agent.common_prior_ingroup) if agent.opinion[agent.norm_context] >= 0.5 else utils.beta_mean(agent.common_prior_outgroup) for agent in self.agents]),
+        try:
+            observations = {'appr':np.mean([utils.beta_mean(agent.common_prior_ingroup) if agent.opinion[agent.norm_context] >= 0.5 else utils.beta_mean(agent.common_prior_outgroup) for agent in self.agents]),
                         'disappr':np.mean([utils.beta_mean(agent.common_prior_ingroup) if agent.opinion[agent.norm_context] < 0.5 else utils.beta_mean(agent.common_prior_outgroup) for agent in self.agents])}
+        except ValueError as e:
+            f=1
+            raise(e)
         if observations['appr'] < 0.5:
             f=1
         if self.only_intensive:
@@ -450,8 +453,10 @@ class Player():
         if not env.homogenous_priors:
             
             if self.opinion['n1'] >= 0.5:
-                _sample = np.clip(np.random.beta(env.common_prior_appr_input[0],env.common_prior_appr_input[1]),0.5,1)
-                _sample_oth = np.clip(np.random.beta(env.common_prior_appr_input[1],env.common_prior_appr_input[0]),0,0.49)
+                #_sample = np.clip(np.random.beta(env.common_prior_appr_input[0],env.common_prior_appr_input[1]),0.5,1)
+                _sample = np.clip(np.random.uniform(0.5, 1),0.5,1)
+                #_sample_oth = np.clip(np.random.beta(env.common_prior_appr_input[1],env.common_prior_appr_input[0]),0,0.49)
+                _sample_oth = np.clip(np.random.uniform(0, 0.49),0,0.49)
                 _sum = np.sum(env.common_prior_appr_input)
                 sample = np.random.randint(1,math.ceil(_sum/2))
                 self.common_prior_ingroup = utils.est_beta_from_mu_sigma(_sample,0.1)
@@ -591,7 +596,7 @@ class Player():
         rhet_thresh = self.rhet_thresh
         u_bar = env.security_util
         op = self.opinion[self.norm_context]
-        if op >= 0.5 and op<0.65:
+        if op >= 0.5 and op<0.55:
             f=1
         mean_from_params = lambda params: params[0]/(params[0]+params[1]) if isinstance(params,tuple) else params
         n_p = self.common_proportion_posterior if isinstance(self.common_proportion_posterior,float) else self.common_proportion_posterior[0]/np.sum(self.common_proportion_posterior)
@@ -801,13 +806,18 @@ class Player():
             group_type = 'appr' if self.opinion[self.norm_context] < 0.5 else 'disappr'
         else:
             raise ValueError('Invalid update type')
-        opt_signals = opt_signals[group_type]
+        #opt_signals = opt_signals[group_type]
+        if group_type == 'appr':
+            opt_signals = opt_signals['appr']
+        else:
+            opt_signals = opt_signals['disappr']
         common_prior = self.common_prior_ingroup if update_type=='ingroup' else self.common_prior_outgroup
         common_prior_mean = common_prior[0]/np.sum(common_prior)
         curr_state = common_prior_mean
         valid_dist = True
         try:
-            _curr_state = round(curr_state,1)
+            _curr_state = np.round(curr_state,1)
+            _curr_state = _curr_state[0] if isinstance(_curr_state,np.ndarray) else _curr_state
             signal_distribution = opt_signals[_curr_state]
         except KeyError:
             print('Info:')
@@ -825,7 +835,7 @@ class Player():
             signal_distribution = signal_distribution[1] if self.opinion[self.norm_context] >= 0.5 else signal_distribution[0]
 
         #if self.sampled_institution.type == 'extensive' or (self.sampled_institution.type == 'intensive' and update_type == 'ingroup'):
-        if True:
+        if env.ts > 1:
             try:
                 if np.round(abs(signal_distribution-common_prior_mean),1) > env.normal_constr_w:
                     common_posterior,common_proportion_posterior =  common_prior, common_proportion_prior
@@ -872,7 +882,10 @@ class Player():
             plt.title('likelihood:'+str(signal_distribution)+','+str(self.common_prior[0]/sum(self.common_prior)))
             plt.show()
             '''
+            if np.isnan(exp_x):
+                f=1
             common_posterior = utils.est_beta_from_mu_sigma(exp_x, var_x, env.inst_update_rate)
+
             if self.opinion[self.norm_context] >= 0.5:
                 if (update_type=='ingroup' and common_posterior[0]<common_posterior[1]) or (update_type=='outgroup' and common_posterior[0]>common_posterior[1]):
                     f=1
@@ -976,8 +989,11 @@ class Institution:
         _app_grp = [ag.opinion[ag.norm_context] for ag in self.institution_community if ag.opinion[ag.norm_context] >= 0.5]
         _disapp_grp = [ag.opinion[ag.norm_context] for ag in self.institution_community if ag.opinion[ag.norm_context] < 0.5]
         self.institution_community_approval_opinion = np.mean(_app_grp) if len(_app_grp) > 0 else None
-        ''' Outgroup community update comes only from participatory institutions '''
-        self.institution_community_disapproval_opinion = np.mean(_disapp_grp) if len(_disapp_grp) > 0 and self.type=='extensive' else None
+        ''' Outgroup community update comes only from participatory institutions (we are running simulation for only the approval group)'''
+        if len(_disapp_grp) > 0 and self.type=='extensive':
+            self.institution_community_disapproval_opinion = np.mean(_disapp_grp)
+        else: 
+            self.institution_community_disapproval_opinion =  np.mean([ag.common_prior_outgroup for ag in self.institution_community if ag.opinion[ag.norm_context] >= 0.5])
             
 class RunInfo():
     
@@ -1029,7 +1045,7 @@ def run_sim_single_institution(run_param):
                 #print('Progress: batch_num:', batch_num, 'ts:', ts, 'out of 100')
                 mean_common_prior_ingroup_var = np.mean([utils.beta_var(agent.common_prior_ingroup[0],agent.common_prior_ingroup[1]) for agent in env.possible_agents])
                 mean_common_prior_outgroup_var = np.mean([utils.beta_var(agent.common_prior_outgroup[0],agent.common_prior_outgroup[1]) for agent in env.possible_agents])
-                
+                env.ts = ts
                 if max(mean_common_prior_ingroup_var,mean_common_prior_outgroup_var) < 0.001:
                     break
                 appr_pos_for_ts,disappr_pos_for_ts, prop_for_ts = None, None, None
@@ -1122,7 +1138,8 @@ def run_sim_multiple_institution(run_param):
                 plt.hist(out_bel_plots)
                 plt.title(f'Outgroup belief at time step {ts}')
                 plt.show()
-                '''                                                   
+                '''             
+                env.ts = ts                                      
                 #print('Progress: batch_num:', batch_num, 'ts:', ts, 'out of 100')
                 mean_common_prior_ingroup_var = np.mean([utils.beta_var(agent.common_prior_ingroup[0],agent.common_prior_ingroup[1]) for agent in env.possible_agents])
                 mean_common_prior_outgroup_var = np.mean([utils.beta_var(agent.common_prior_outgroup[0],agent.common_prior_outgroup[1]) for agent in env.possible_agents])

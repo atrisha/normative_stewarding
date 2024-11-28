@@ -28,7 +28,12 @@ import torch
 import os
 from sklearn.ensemble import RandomForestRegressor
 import pickle
+import json
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
+def load_from_json(filename):
+    with open(filename, 'r') as f:
+        return json.load(f)
 
 def plot_beta(a,b,ax=None,color=None,label=None,linestyle='-'):
     x = np.linspace(beta.ppf(0.01, a, b),beta.ppf(0.99, a, b), 100)
@@ -47,7 +52,7 @@ def plot_beta(a,b,ax=None,color=None,label=None,linestyle='-'):
         #ax.set_xlabel('Values of Random Variable X (0, 1)', fontsize='15')
         #ax.set_ylabel('Probability', fontsize='15')
         
-    
+
 def eq(a,b):
     return a==b 
 
@@ -504,7 +509,7 @@ def est_beta_from_mu_sigma(mu, variance, update_rate=None):
 class Gaussian_plateu_distribution():
     ''' https://stats.stackexchange.com/a/203756 '''
     def __init__(self,mu,sigma,w):
-        self.mu = mu
+        self.mu = mu if not isinstance(mu, np.ndarray) else mu[0]
         self.sigma =sigma
         self.w = w
         self.root_2_pi_sigma = math.sqrt(2 * math.pi * self.sigma)
@@ -597,7 +602,8 @@ def beta_var(a,b):
 
 def beta_mean(params):
     a,b = params
-    return a/(a+b)
+    m =  a/(a+b)
+    return m if isinstance(m, float) else m[0]
 
 def distributionalize(priors,posterior_float):
     if not isinstance(posterior_float, tuple):

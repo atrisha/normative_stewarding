@@ -280,7 +280,42 @@ def plot_opinion_distr():
     plt.grid(True)
     plt.show()
     
-if __name__ == '__main__':
-    #plot_opinion_distr()
-    #single_institution_plots()
-    multiple_institutions_plot()
+import argparse
+import sys
+
+def main():
+    # Create the argument parser
+    parser = argparse.ArgumentParser(
+        description="Execute one of the analysis functions: plot_opinion_distr, single_institution_plots, or multiple_institutions_plot."
+    )
+    
+    # Add argument for selecting the function
+    parser.add_argument(
+        "function",
+        type=str,
+        choices=["plot_opinion_distr", "single_institution_plots", "multiple_institutions_plot"],
+        help="The name of the function to execute."
+    )
+    
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Map function names to actual functions
+    function_map = {
+        "plot_opinion_distr": plot_opinion_distr,
+        "single_institution_plots": single_institution_plots,
+        "multiple_institutions_plot": multiple_institutions_plot
+    }
+
+    # Execute the selected function
+    selected_function = function_map[args.function]
+    print(f"Executing {args.function}...")
+    selected_function()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"An error occurred: {e}", file=sys.stderr)
+        sys.exit(1)
+

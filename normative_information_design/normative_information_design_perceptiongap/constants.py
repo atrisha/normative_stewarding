@@ -32,6 +32,63 @@ def get_beta_discrete(inp_x,a,b):
     return beta_discrete
 '''
 
+
+
+# Paths
+DATA_DIRECTORY = os.path.join(os.getcwd(), 'data')
+POLICY_FILE = os.path.join(DATA_DIRECTORY, 'inst_opt_policy.json')
+SAMPLING_RATIOS_FILE = os.path.join(DATA_DIRECTORY, 'inst_sampling_ratios.json')
+RHETORIC_MODEL_FILE = os.path.join(os.getcwd(), 'pickles', 'rhet_eq_estimation.pkl')
+
+# Common Priors
+COMMON_PRIOR_APPR_INPUT = (5, 3)  # Beta distribution prior for approvers' input belief
+COMMON_PRIOR_APPR = (5, 3)        # Beta distribution prior for approvers' belief
+COMMON_PRIOR_DISAPPR = (3, 5)     # Beta distribution prior for disapprovers' belief
+COMMON_PROPORTION_PRIOR = (5, 5)  # Beta distribution prior for the proportion of approvers
+
+# Simulation Attributes
+ATTR_DICT = {
+    'distr_params': {
+        'mean_op_degree_apr': 0.6,  # Mean opinion degree for approvers
+        'mean_op_degree_disapr': 0.4,  # Mean opinion degree for disapprovers
+        'apr_weight': 0.5,  # Weight assigned to approvers
+        'SD': 0.2,  # Standard deviation for opinion degree
+    },
+    'distr_shape': 'U',  # Distribution shape for the simulation
+    'extensive': False,  # Whether we are running participatory instiuations
+    'common_prior_appr': COMMON_PRIOR_APPR,
+    'common_prior_disappr': COMMON_PRIOR_DISAPPR,
+    'common_proportion_prior': COMMON_PROPORTION_PRIOR,
+    'common_prior_appr_input': COMMON_PRIOR_APPR_INPUT,
+    'only_intensive': False,  # Whether to run only ideological institutions
+    'homogenous_priors': True,  # Whether priors are homogenous
+    'num_players': 100,  # Number of players in the simulation
+    'alpha': 0.5,  # Moderation strictness parameter
+    'tailored_alpha': False,  # Whether moderation is tailored. This is always False.
+    'lambda_outgroup': 0.5,  # Influence factor for out-group effects
+    'lambda_ingroup': 1.5,  # Influence factor for in-group effects
+    'normal_constr_w': 0.2,  # Constraint weight for normal distribution
+    'rhet_thresh_mean': 0.3,  # Threshold rhetoric at which agent stays silent
+    'update_rate': 0.2,  # Update rate for opinion change
+    'inst_update_rate': 0.2,  # Update rate for institution behavior
+    'num_batches': 10,  # Number of batches for simulation
+    'num_timesteps': 100,  # Number of timesteps in the simulation
+    'print_log': False,  # Whether to print detailed logs
+    'verbose': False,  # Whether to enable verbose output
+    'show_plots': True,  # Whether to show plots
+}
+
+# Runtime Parameters
+RUN_PARAM = {
+    'common_prior_appr_input': COMMON_PRIOR_APPR_INPUT,
+    'common_prior_appr': COMMON_PRIOR_APPR,
+    'common_prior_disappr': COMMON_PRIOR_DISAPPR,
+    'common_proportion_prior': COMMON_PROPORTION_PRIOR,
+    'normal_constr_w': ATTR_DICT['normal_constr_w'],  # Signalling Constraint parameter
+    'credible': True,  # Unused param
+}
+
+
 def calc_sum_util(util_val,d):
     scaled_disc = 1- (1-d)*(1-discount_factor)
     sum = 0
