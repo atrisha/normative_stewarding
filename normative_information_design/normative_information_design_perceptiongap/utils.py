@@ -28,7 +28,12 @@ import torch
 import os
 from sklearn.ensemble import RandomForestRegressor
 import pickle
+import json
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
+def load_from_json(filename):
+    with open(filename, 'r') as f:
+        return json.load(f)
 
 def plot_beta(a,b,ax=None,color=None,label=None,linestyle='-'):
     x = np.linspace(beta.ppf(0.01, a, b),beta.ppf(0.99, a, b), 100)
@@ -47,7 +52,7 @@ def plot_beta(a,b,ax=None,color=None,label=None,linestyle='-'):
         #ax.set_xlabel('Values of Random Variable X (0, 1)', fontsize='15')
         #ax.set_ylabel('Probability', fontsize='15')
         
-    
+
 def eq(a,b):
     return a==b 
 
@@ -467,7 +472,7 @@ def generate_correleted_opinions(marginal_params,correlation_val,size):
     samples = np.column_stack([x1_trans,x2_trans])
     return samples
 
-def est_beta_from_mu_sigma(mu, variance):
+def est_beta_from_mu_sigma(mu, variance, update_rate=None):
     if abs(mu-1) < 10**-6:
         return (1,0)
     elif mu < 10**-6:
@@ -490,17 +495,21 @@ def est_beta_from_mu_sigma(mu, variance):
         assert (mu-0.5)*(mu_check-0.5) >= 0, "mu_check failed: mu = {}, mu_check = {}".format(mu, mu_check)
         _param_min = np.min((alpha, beta))
         if _param_min < 1:
-            _diff = 1-_param_min
-            alpha, beta = (alpha+_diff,beta+_diff)
-            mu_check = alpha / (alpha + beta)
+            mu_cross_100 = mu*100
+            _alpha,_beta = np.clip(mu_cross_100,10**-3,100-10**-6),np.clip(100-mu_cross_100,10**-3,100-10**-3)
+            alpha = _alpha/min(_alpha,_beta)
+            beta = _beta/min(_alpha,_beta)
             assert (mu-0.5)*(mu_check-0.5) >= 0, "mu_check failed: mu = {}, mu_check = {}, alpha ={}, beta = {}".format(mu, mu_check, alpha, beta)
+        if update_rate is not None:
+            alpha = alpha/(alpha+beta) * update_rate
+            beta = update_rate - alpha
         return (alpha, beta)
 
 
 class Gaussian_plateu_distribution():
     ''' https://stats.stackexchange.com/a/203756 '''
     def __init__(self,mu,sigma,w):
-        self.mu = mu
+        self.mu = mu if not isinstance(mu, np.ndarray) else mu[0]
         self.sigma =sigma
         self.w = w
         self.root_2_pi_sigma = math.sqrt(2 * math.pi * self.sigma)
@@ -593,7 +602,8 @@ def beta_var(a,b):
 
 def beta_mean(params):
     a,b = params
-    return a/(a+b)
+    m =  a/(a+b)
+    return m if isinstance(m, float) else m[0]
 
 def distributionalize(priors,posterior_float):
     if not isinstance(posterior_float, tuple):
@@ -703,6 +713,10 @@ def predict_posterior(model_in, a, b, s):
     pred_mu = min(1,max(0.5,pred_mu)) if group_type == 'appr' else min(0.5,max(0,pred_mu))
     return pred_mu,pred_var
 
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
+
 def generate_rhetoric_equilibrium_estimation_model(run_param):
     import numpy as np
     import itertools
@@ -715,8 +729,8 @@ def generate_rhetoric_equilibrium_estimation_model(run_param):
     import random
 
     # Defining the function
-    def equation(x, n, o, a, lambda_in):
-        return min(1,((n * o * lambda_in * (1 - x)) / a )**(1 / x))
+    def equation(x, n, o, a, lambda_in, lambda_out):
+        return min(1,((n * o * lambda_in * (1 - x)) / (a-(1-n)*(o*lambda_out**x)) )**(1 / x))
 
     # Function to find the max x where the curve crosses the y=x line
     def find_max_x_intersection(params):
@@ -744,8 +758,9 @@ def generate_rhetoric_equilibrium_estimation_model(run_param):
     opinion_samples = np.arange(0.5,1,0.01)  # Samples for o
     alpha_samples = np.arange(0.1,1,0.1)              # Fixed values for a
     lambda_ingroup_samples = [run_param['attr_dict']['lambda_ingroup']]
+    lambda_outgroup_samples = [run_param['attr_dict']['lambda_outgroup']]
     # Generating all combinations of parameters
-    parameter_combinations = list(itertools.product(prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples))
+    parameter_combinations = list(itertools.product(prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples, lambda_outgroup_samples))
     print(len(parameter_combinations))
     parameter_combinations = random.sample(parameter_combinations, 1000)
     # Calculating the maximum x for each parameter combination

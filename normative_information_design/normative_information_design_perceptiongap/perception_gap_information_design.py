@@ -91,81 +91,44 @@ class parallel_env(ParallelEnv):
             if agent.opinion[agent.norm_context] >= 0.5:
                 agent.common_posterior_ingroup = (agent.common_posterior_ingroup[0] + a_prime, agent.common_posterior_ingroup[1] + b_prime)
             else:
-                agent.common_posterior_outgroup = (agent.common_posterior_ingroup[0] + a_prime, agent.common_posterior_ingroup[1] + b_prime)
+                agent.common_posterior_outgroup = (agent.common_posterior_outgroup[0] + a_prime, agent.common_posterior_outgroup[1] + b_prime)
         if theta_prime_rate_disappr is not None:
             a_prime = theta_prime_rate_disappr * update_rate
             b_prime = update_rate - a_prime
-            if agent.opinion[agent.norm_context] < 0.5:
+            if agent.opinion[agent.norm_context] >= 0.5:
                 agent.common_posterior_outgroup = (agent.common_posterior_outgroup[0] + a_prime, agent.common_posterior_outgroup[1] + b_prime)    
             else:
                 agent.common_posterior_ingroup = (agent.common_posterior_ingroup[0] + a_prime, agent.common_posterior_ingroup[1] + b_prime)
 
 
-    def update_agent(self, agent, agents, update_rate):
-        """Updates the agent based on its listening type and opinion.
-
-        Args:
-        agent (Agent): The agent to be updated.
-        agents (list): List of all agents.
-        update_rate (float): The update rate.
-        """
-        # Determine comparison operator based on agent's opinion
-        compare_op = operator.lt if agent.opinion[agent.norm_context] < 0.5 else operator.ge
-
-        # Update logic for 'intensive' listening type
-        if agent.listened_to == 'intensive':
-            ingroup_intensives = self.create_group(agents, 'intensive', 'intensive', 0.5, compare_op) 
-            ingroup_boths = self.create_group(agents, 'intensive', 'both', 0.5, compare_op)
-            ingroup = ingroup_intensives + ingroup_boths
-            a_prime, b_prime = self.calculate_update(ingroup, update_rate)
-            agent.common_prior_ingroup = (agent.common_prior_ingroup[0] + a_prime, agent.common_prior_ingroup[1] + b_prime)
-        elif agent.listened_to == 'extensive':
-            # Update logic for 'extensive' listening type
-            outgroup_extensives = self.create_group(agents, 'extensive', 'extensive', 0.5, operator.lt if compare_op==operator.ge else operator.ge)
-            outgroup_boths = self.create_group(agents, 'extensive', 'both', 0.5, operator.lt if compare_op==operator.ge else operator.ge)
-            update_group_outgroup = outgroup_extensives + outgroup_boths
-            
-            a_prime, b_prime = self.calculate_update(update_group_outgroup, update_rate)
-            agent.common_prior_outgroup = (agent.common_prior_outgroup[0] + a_prime, agent.common_prior_outgroup[1] + b_prime)
-
-            ingroup_extensives = self.create_group(agents, 'extensive', 'extensive', 0.5, compare_op)
-            ingroup_boths = self.create_group(agents, 'extensive', 'both', 0.5, compare_op)
-            update_group_ingroup = ingroup_extensives + ingroup_boths
-            
-            a_prime, b_prime = self.calculate_update(update_group_ingroup, update_rate)
-            agent.common_prior_ingroup = (agent.common_prior_ingroup[0] + a_prime, agent.common_prior_ingroup[1] + b_prime)
-            
-        elif agent.listened_to == 'both':
-            ''' agent listened to both '''
-            ''' First update when agent listens to intensive '''
-            ingroup_boths_intensives = self.create_group(agents, 'intensive', 'both', 0.5, compare_op) 
-            ingroup_intensives = self.create_group(agents, 'intensive', 'intensive', 0.5, compare_op)
-            ingroup_from_intensive_listening = ingroup_boths_intensives + ingroup_intensives
-            a_prime, b_prime = self.calculate_update(ingroup_from_intensive_listening, agent.listening_proportions['intensive']*update_rate)
-            agent.common_prior_ingroup = (agent.common_prior_ingroup[0] + a_prime, agent.common_prior_ingroup[1] + b_prime)
-
-            ''' Then update again when agent listens to extensive. Scaling the update rate accordingly  '''
-            ingroup_boths_extensives = self.create_group(agents, 'extensive', 'both', 0.5, compare_op)
-            ingroup_extensives = self.create_group(agents, 'extensive', 'extensive', 0.5, compare_op)
-            ingroup_from_extensive_listening = ingroup_boths_extensives + ingroup_extensives
-            a_prime, b_prime = self.calculate_update(ingroup_from_extensive_listening, agent.listening_proportions['extensive']*update_rate)
-            agent.common_prior_ingroup = (agent.common_prior_ingroup[0] + a_prime, agent.common_prior_ingroup[1] + b_prime)
-
-            ''' Update outgroup '''
-            outgroup_extensives = self.create_group(agents, 'extensive', 'extensive', 0.5, operator.lt if compare_op==operator.ge else operator.ge)
-            outgroup_boths = self.create_group(agents, 'extensive', 'both', 0.5, operator.lt if compare_op==operator.ge else operator.ge)
-            update_group_outgroup = outgroup_extensives + outgroup_boths
-            a_prime, b_prime = self.calculate_update(update_group_outgroup, agent.listening_proportions['extensive']*update_rate)
-            agent.common_prior_outgroup = (agent.common_prior_outgroup[0] + a_prime, agent.common_prior_outgroup[1] + b_prime)
+    def update_agent(self, agent, inst, update_rate):
+        '''Updates the agent based on the inst community.'''
+        appr_signal = inst.institution_community_approval_opinion
+        disappr_signal = inst.institution_community_disapproval_opinion
+        if self.verbose:
+            print(f'Old beliefs for agent {agent.id} with {agent.opinion[agent.norm_context]}: Ingroup: {agent.common_posterior_ingroup}, Outgroup: {agent.common_posterior_outgroup}')
+        if agent.opinion[agent.norm_context] >= 0.5:
+            if appr_signal is not None:
+                a_prime = appr_signal * update_rate
+                b_prime = update_rate - a_prime
+                agent.common_posterior_ingroup = (agent.common_posterior_ingroup[0] + a_prime, agent.common_posterior_ingroup[1] + b_prime)
+            if disappr_signal is not None:
+                a_prime = disappr_signal * update_rate
+                b_prime = update_rate - a_prime
+                agent.common_posterior_outgroup = (agent.common_posterior_outgroup[0] + a_prime, agent.common_posterior_outgroup[1] + b_prime)
         else:
-            ''' Agent listened to none '''
-            pass
-        if isinstance(agent.common_prior_ingroup,float) or isinstance(agent.common_prior_outgroup,float):
-            f=1
+            if disappr_signal is not None:
+                a_prime = disappr_signal * update_rate
+                b_prime = update_rate - a_prime
+                agent.common_posterior_outgroup = (agent.common_posterior_outgroup[0] + a_prime, agent.common_posterior_outgroup[1] + b_prime)
+            if appr_signal is not None:
+                a_prime = appr_signal * update_rate
+                b_prime = update_rate - a_prime
+                agent.common_posterior_ingroup = (agent.common_posterior_ingroup[0] + a_prime, agent.common_posterior_ingroup[1] + b_prime)
+        if self.verbose:
+            print(f'New beliefs for agent {agent.id} with {agent.opinion[agent.norm_context]}: Ingroup: {agent.common_posterior_ingroup}, Outgroup: {agent.common_posterior_outgroup}')
 
-
-
-        # Add similar logic for 'extensive' and 'both' cases
+        
 
     
     def generate_opinions(self,distr_shape,distr_params):
@@ -212,7 +175,6 @@ class parallel_env(ParallelEnv):
             for key in attr_dict:
                 setattr(self, key, attr_dict[key])
         self.num_players = 100 if not hasattr(self, 'num_players') else self.num_players
-        self.update_rate = 2
         self.sanc_marginal_target = 0.2
         #self.norm_context_list = ['n1','n2','n3','n4']
         self.norm_context_list = ['n1']
@@ -227,7 +189,6 @@ class parallel_env(ParallelEnv):
             zip(self.possible_agents, list(range(len(self.possible_agents))))
         )
         self.render_mode = render_mode
-        
         ''' Define list of normative contexts and initial distributions '''
         #self.norm_contexts_distr = {x:0.25 for x in self.norm_context_list}
         if not hasattr(self, 'norm_contexts_distr'):
@@ -246,7 +207,7 @@ class parallel_env(ParallelEnv):
         players_private_contexts  = self.players_private_contexts
         for idx,op in enumerate(players_private_contexts): self.possible_agents[idx].norm_context = players_private_contexts[idx]
         
-        distr_params = {'mean_op_degree_apr':0.7,'mean_op_degree_disapr':0.4,'apr_weight':0.5,'SD':0.05} if self.distr_params is None else self.distr_params
+        distr_params = {'mean_op_degree_apr':0.6,'mean_op_degree_disapr':0.4,'apr_weight':0.5,'SD':0.05} if self.distr_params is None else self.distr_params
         distr_shape = 'U' if self.distr_shape is None else self.distr_shape
         ops = self.generate_opinions(distr_shape,distr_params)
         self.num_appr = len([op for op in ops if op >= 0.5])
@@ -275,6 +236,7 @@ class parallel_env(ParallelEnv):
         ''' Define the marginal approval means'''
         
         self.agents = self.possible_agents
+        self.agent_personas = {ag.id:AgentPersona(ag) for ag in self.agents}
         
     
     # this cache ensures that same space object is returned for the same agent
@@ -352,102 +314,105 @@ class parallel_env(ParallelEnv):
         num_observation = len(observed_action_values)
         num_participation = len([ag for ag in self.agents if ag.action[0]!=-1])/self.num_players
         run_type = 'execution' if isinstance(run_type,bool) and run_type==True else 'baseline' if isinstance(run_type,bool) and run_type==False else run_type
-        if run_type == 'execution' or run_type == 'transition_genration':
-            ''' Let the reward be inversely proportional to the opinion value extremity'''
-            baseline_op_mean = np.mean([ag.opinion[ag.norm_context] for ag in self.agents])
-            terminations = {agent.id: False for agent in self.agents}
-            self.num_moves += 1
-            env_truncation = self.num_moves >= self.NUM_ITERS
-            truncations = {agent.id: env_truncation for agent in self.agents}
-    
-            ''' Observation is the next state, or the common prior change '''
-            num_appr = len([ag.action[0] for ag in self.agents if ag.action[0]==1 and ag.action[0]!=-1])
-            num_disappr = len([ag.action[0] for ag in self.agents if ag.action[0]==0 and ag.action[0]!=-1])
-            
-            if num_observation > 0:
-                
-                theta_prime_rate_appr = 1 if len([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >=0.5]) == 0 else np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >=0.5])
-                theta_prime_rate_disappr = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] <0.5]) if len([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] <0.5]) > 0 else 0
-                for agent in self.agents:
-                    """ Posteriors become priors for the next round in this function """
-                    agent.common_prior_outgroup = utils.distributionalize(agent.common_prior_outgroup,agent.common_posterior_outgroup)
-                    agent.common_prior_ingroup = utils.distributionalize(agent.common_prior_ingroup,agent.common_posterior_ingroup)
-                    if run_type == 'transition_genration':
-                        self.update_simple(agent,self.agents,self.update_rate)
-                    else:
-                        self.update_agent(agent,self.agents,self.update_rate)
-            else:
-                theta_prime_rate_appr = 1
-                theta_prime_rate_disappr = 0
-                for agent in self.agents:
-                    agent.common_prior_outgroup = utils.distributionalize(agent.common_prior_outgroup,agent.common_posterior_outgroup)
-                    agent.common_prior_ingroup = utils.distributionalize(agent.common_prior_ingroup,agent.common_posterior_ingroup)
-            for agent in self.agents:
-                if (agent.common_prior_outgroup[0]/np.sum(agent.common_prior_outgroup) - 0.5)*(agent.opinion[agent.norm_context]-0.5) > 0 \
-                        or (agent.common_prior_ingroup[0]/np.sum(agent.common_prior_ingroup) - 0.5)*(agent.opinion[agent.norm_context]-0.5) < 0:
-                        f=1
-                    
-            ''' Assign (institutional) rewards'''
-            if self.extensive:
-                rewards = (np.mean([num_appr/self.num_appr,num_disappr/self.num_disappr])-0.5)*2
-            else:
-                try:
-                    if num_appr > 0:
-                        mean_appr_degree = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >= 0.5])
-                        _acts = [ag.action[3] for ag in self.agents if ag.action[0]!=-1]
-                        mean_sanctioning_capacity = np.mean(_acts)
-                        rewards = 4*mean_appr_degree - 3
-                        if self.print_log:
-                            print(f'appr nums: {num_appr}, disapp nums: {num_disappr} sanctioning capacity: {mean_appr_degree}, rewards: {rewards}')
+        ''' Let the reward be inversely proportional to the opinion value extremity'''
+        baseline_op_mean = np.mean([ag.opinion[ag.norm_context] for ag in self.agents])
+        terminations = {agent.id: False for agent in self.agents}
+        self.num_moves += 1
+        env_truncation = self.num_moves >= self.NUM_ITERS
+        truncations = {agent.id: env_truncation for agent in self.agents}
 
-                    else:
-                        rewards = -1
-                except ValueError as e:
-                    f=1
-                    raise e
+        ''' Observation is the next state, or the common prior change '''
+        num_appr = len([ag.action[0] for ag in self.agents if ag.action[0]==1 and ag.action[0]!=-1])
+        num_disappr = len([ag.action[0] for ag in self.agents if ag.action[0]==0 and ag.action[0]!=-1])
+        mean_appr = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >= 0.5])
+        mean_disappr = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] < 0.5])
+        if run_type == 'execution':
+            ''' This updates rewards in the agent persona that will help the recommender system to learn the rewards to select the institution in the next round'''
+            for agent in self.agents:
+                self.agent_personas[agent.id].update_rewards(agent.listened_to)
+                if agent.action[0] != -1:
+                    agent.sampled_institution.institution_community.append(agent)
             
-            observations = {'appr':np.mean([utils.beta_mean(agent.common_prior_ingroup) if agent.opinion[agent.norm_context] >= 0.5 else utils.beta_mean(agent.common_prior_outgroup) for agent in self.agents]),
-                            'disappr':np.mean([utils.beta_mean(agent.common_prior_ingroup) if agent.opinion[agent.norm_context] < 0.5 else utils.beta_mean(agent.common_prior_outgroup) for agent in self.agents])}
-            if observations['appr'] < 0.5:
-                f=1
-            if self.only_intensive:
-                x = [(ag.opinion[ag.norm_context],ag.listened_to,ag.action[0],ag.action[5],ag.action[6]) for ag in self.agents if ag.opinion[ag.norm_context] >=0.5]
-                x.sort(key=lambda x: x[0])
+        if num_observation > 0:
+            
+            
+            theta_prime_rate_appr = 1 if len([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >=0.5]) == 0 else np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >=0.5])
+            theta_prime_rate_disappr = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] <0.5]) if len([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] <0.5]) > 0 else 0
+            if run_type == 'transition_generation' or run_type == 'baseline':
+                for agent in self.agents:
+                    self.update_simple(agent,self.agents,self.update_rate)
+                    agent.common_prior_outgroup = utils.distributionalize(agent.common_prior_outgroup,agent.common_posterior_outgroup)
+                    agent.common_prior_ingroup = utils.distributionalize(agent.common_prior_ingroup,agent.common_posterior_ingroup)
             else:
-                x = [(ag.opinion[ag.norm_context],ag.listened_to,ag.action[0],ag.action[5],ag.action[6]) for ag in self.agents if ag.opinion[ag.norm_context] >=0.5]
-                x.sort(key=lambda x: x[0])
-            # typically there won't be any information in the infos, but there must
-            # still be an entry for each agent
-            
-            infos = x
-    
-            if env_truncation:
-                self.agents = []
-    
-            if self.render_mode == "human":
-                self.render(iter_no)
-            return observations, rewards, terminations, truncations, infos
-        elif run_type == 'baseline':
-            num_appr = len([ag.action[0] for ag in self.agents if ag.action[0]==1 and ag.action[0]!=-1])
-            num_disappr = len([ag.action[0] for ag in self.agents if ag.action[0]==0 and ag.action[0]!=-1])
-            if num_observation > 0:
-                theta_prime_rate = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1])
-                #theta_prime_by_nums = num_appr /(num_appr+num_disappr)
-                #theta_prime_rate = theta_prime_by_nums
-                a_prime = theta_prime_rate*self.update_rate
-                b_prime =  self.update_rate-a_prime
-                self.prior_baseline = (self.prior_baseline[0]+a_prime, self.prior_baseline[1]+b_prime)
-                
-                a_prime_prop = num_participation*self.update_rate
-                b_prime_prop =  self.update_rate-a_prime_prop
-                self.prior_prop_baseline = (self.prior_prop_baseline[0]+a_prime, self.prior_prop_baseline[1]+b_prime)
-                
-                mean_appr_degree = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1])
-                mean_sanctioning_capacity = np.mean([ag.action[3] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >= 0.5])
-                #print('------>',self.common_proportion_prior[0]/np.sum(self.common_proportion_prior), self.common_prior[0]/np.sum(self.common_prior), '||', mean_appr_degree,mean_sanctioning_capacity,)
-                self.mean_sanction_baseline = mean_sanctioning_capacity*mean_appr_degree
+                ''' Update the communtiy signals '''
+                for inst_type,inst in self.institutions.items():
+                    inst.populate_community_signals()
+                    for ag in inst.institution_community:
+                        ag.common_prior_outgroup_old, ag.common_prior_ingroup_old = ag.common_prior_outgroup, ag.common_prior_ingroup
+                        ag.common_prior_outgroup = utils.distributionalize(ag.common_prior_outgroup,ag.common_posterior_outgroup)
+                        ag.common_prior_ingroup = utils.distributionalize(ag.common_prior_ingroup,ag.common_posterior_ingroup)
+                        self.update_agent(ag,inst,self.update_rate)
+                        if ag.opinion[ag.norm_context] >= 0.5:
+                            if ag.common_prior_ingroup[0] < ag.common_prior_ingroup[1] or ag.common_prior_outgroup[0] > ag.common_prior_outgroup[1]:
+                                f=1
+                        else:    
+                            if ag.common_prior_ingroup[0] > ag.common_prior_ingroup[1] or ag.common_prior_outgroup[0] < ag.common_prior_outgroup[1]:
+                                f=1 
+                    inst.institution_community = []
+
         else:
-            raise ValueError(f"Invalid run type: {run_type}")
+            theta_prime_rate_appr = 1
+            theta_prime_rate_disappr = 0
+            for agent in self.agents:
+                agent.common_prior_outgroup = utils.distributionalize(agent.common_prior_outgroup,agent.common_posterior_outgroup)
+                agent.common_prior_ingroup = utils.distributionalize(agent.common_prior_ingroup,agent.common_posterior_ingroup)
+
+
+        ''' Assign (institutional) rewards'''
+        if self.extensive:
+            rewards = (np.mean([num_appr/self.num_appr,num_disappr/self.num_disappr])-0.5)*2
+        else:
+            try:
+                if num_appr > 0:
+                    mean_appr_degree = np.mean([ag.opinion[ag.norm_context] for ag in self.agents if ag.action[0]!=-1 and ag.opinion[ag.norm_context] >= 0.5])
+                    _acts = [ag.action[3] for ag in self.agents if ag.action[0]!=-1]
+                    mean_sanctioning_capacity = np.mean(_acts)
+                    rewards = 4*mean_appr_degree - 3
+                    if self.print_log:
+                        print(f'appr nums: {num_appr}, disapp nums: {num_disappr} sanctioning capacity: {mean_appr_degree}, rewards: {rewards}')
+
+                else:
+                    rewards = -1
+            except ValueError as e:
+                f=1
+                raise e
+        try:
+            observations = {'appr':np.mean([utils.beta_mean(agent.common_prior_ingroup) if agent.opinion[agent.norm_context] >= 0.5 else utils.beta_mean(agent.common_prior_outgroup) for agent in self.agents]),
+                        'disappr':np.mean([utils.beta_mean(agent.common_prior_ingroup) if agent.opinion[agent.norm_context] < 0.5 else utils.beta_mean(agent.common_prior_outgroup) for agent in self.agents])}
+        except ValueError as e:
+            f=1
+            raise(e)
+        if observations['appr'] < 0.5:
+            f=1
+        if self.only_intensive:
+            x = [(ag.opinion[ag.norm_context],ag.listened_to,ag.action[0],ag.action[5],ag.action[6]) for ag in self.agents if ag.opinion[ag.norm_context] >=0.5]
+            x.sort(key=lambda x: x[0])
+        else:
+            x = [(ag.opinion[ag.norm_context],ag.listened_to,ag.action[0],ag.action[5],ag.action[6]) for ag in self.agents if ag.opinion[ag.norm_context] >=0.5]
+            x.sort(key=lambda x: x[0])
+        # typically there won't be any information in the infos, but there must
+        # still be an entry for each agent
+        
+        infos = x
+
+        if env_truncation:
+            self.agents = []
+
+        if self.render_mode == "human":
+            self.render(iter_no)
+        return observations, rewards, terminations, truncations, infos
+        
+        
 
     
     
@@ -481,28 +446,43 @@ class Player():
         self.total_participation = 0
         self.historical_listened_to = []
         self.env = env
-        self.rhet_thresh = np.random.beta(0.3,3)
+        #self.rhet_thresh = np.clip(np.random.exponential(scale=env.rhet_thresh_mean), 0, 1)
+        self.rhet_thresh = env.rhet_thresh_mean
     
     def init_beliefs(self,env):
         if not env.homogenous_priors:
             
             if self.opinion['n1'] >= 0.5:
+                #_sample = np.clip(np.random.beta(env.common_prior_appr_input[0],env.common_prior_appr_input[1]),0.5,1)
+                _sample = np.clip(np.random.uniform(0.5, 1),0.5,1)
+                #_sample_oth = np.clip(np.random.beta(env.common_prior_appr_input[1],env.common_prior_appr_input[0]),0,0.49)
+                _sample_oth = np.clip(np.random.uniform(0, 0.49),0,0.49)
                 _sum = np.sum(env.common_prior_appr_input)
                 sample = np.random.randint(1,math.ceil(_sum/2))
-                self.common_prior_ingroup = (_sum-sample,sample)
-                self.common_prior_outgroup = (self.common_prior_ingroup[1],self.common_prior_ingroup[0])
-                assert self.common_prior_ingroup[0] >= self.common_prior_ingroup[1], f"Ingroup prior first element should be greater or equal to second. _sum: {_sum}, sample: {sample}"
-                assert self.common_prior_outgroup[0] < self.common_prior_outgroup[1], f"Outgroup prior first element should be less than second. _sum: {_sum}, sample: {sample}"
+                self.common_prior_ingroup = utils.est_beta_from_mu_sigma(_sample,0.1)
+                self.common_prior_outgroup = utils.est_beta_from_mu_sigma(_sample_oth,0.1)
+                assert self.common_prior_ingroup[0] >= self.common_prior_ingroup[1], f"Ingroup prior first element should be greater or equal to second. ingroup: {self.common_prior_ingroup}, sample: {_sample}"
+                assert self.common_prior_outgroup[0] < self.common_prior_outgroup[1], f"Outgroup prior first element should be less than second. outgroup: {self.common_prior_outgroup}, sample: {_sample}"
             else:
+                '''
                 _sum = np.sum(env.common_prior_appr_input)
                 sample = np.random.randint(1,math.ceil(_sum/2))
                 self.common_prior_outgroup = (_sum-sample,sample)
                 self.common_prior_ingroup = (self.common_prior_outgroup[1],self.common_prior_outgroup[0])
-                assert self.common_prior_ingroup[0] < self.common_prior_ingroup[1], f"Ingroup prior first element should be less than to second. _sum: {_sum}, sample: {sample}"
-                assert self.common_prior_outgroup[0] >= self.common_prior_outgroup[1], f"Outgroup prior first element should be greater than equal second. _sum: {_sum}, sample: {sample}"
+                '''
+                _sample_oth = np.clip(np.random.beta(env.common_prior_appr_input[0],env.common_prior_appr_input[1]),0.5,1)
+                _sample = np.clip(np.random.beta(env.common_prior_appr_input[1],env.common_prior_appr_input[0]),0,0.49)
+                _sum = np.sum(env.common_prior_appr_input)
+                sample = np.random.randint(1,math.ceil(_sum/2))
+                self.common_prior_ingroup = utils.est_beta_from_mu_sigma(_sample,0.1)
+                self.common_prior_outgroup = utils.est_beta_from_mu_sigma(_sample_oth,0.1)
+                assert self.common_prior_ingroup[0] < self.common_prior_ingroup[1], f"Ingroup prior first element should be greater or equal to second. ingroup: {self.common_prior_ingroup}, sample: {_sample}"
+                assert self.common_prior_outgroup[0] >= self.common_prior_outgroup[1], f"Outgroup prior first element should be less than second. outgroup: {self.common_prior_outgroup}, sample: {_sample}"
             self.common_prior_outgroup_init = self.common_prior_outgroup[0]/np.sum(self.common_prior_outgroup)
             self.common_posterior_ingroup = self.common_prior_ingroup
             self.common_posterior_outgroup = self.common_prior_outgroup
+            if env.verbose:
+                print(f'Agent id {self.id} with {self.opinion[self.norm_context]} initialized with prior beliefs: {self.common_prior_ingroup}, {self.common_prior_outgroup}')
             '''
             self.common_prior_ingroup = env.common_prior_appr if self.opinion['n1'] >= 0.5 else env.common_prior_disappr
             self.common_prior_outgroup = env.common_prior_disappr if self.opinion['n1'] >= 0.5 else env.common_prior_appr
@@ -528,19 +508,45 @@ class Player():
         rhet =  -1.6425*o**2 + 3.6693*o - 1.3048 
         return min(max(0,rhet),1)
         
-    def opt_rhetoric_intensity_func(self, env, n_p, o, lambda_ingroup, exp_op):
+    def opt_rhetoric_intensity_func(self, env, n_p, o, lambda_ingroup, exp_op, lambda_outgroup):
         """ This comes from the estimated function of the optimal rhetoric intensity"""
         model = env.rhetoric_estimation_model
+        if env.tailored_alpha:
+            alpha = np.clip(0.2 + (np.exp(2 * (exp_op - 0.5)) - 1) / (np.exp(1) - 1) * (1 - 0.2), 0, 1)
+        else:
+            alpha = env.alpha
         # With the changed model, these are the features prop_samples, opinion_samples, alpha_samples, lambda_ingroup_samples
-        rhet_eq = model.predict(np.asarray([n_p, exp_op, env.alpha, lambda_ingroup]).reshape(1,-1))
+        rhet_eq = model.predict(np.asarray([n_p, exp_op, alpha, lambda_ingroup, lambda_outgroup]).reshape(1,-1))
         rhet_eq = max(min(rhet_eq[0],1),0)
         '''if o > r_comp_thresh:
             return rhet_eq
         else:
             return 0'''
         # The equilibrium above is ex-ante. Now calculate the ex-interim best-response
+        if env.tailored_alpha:
+            alpha = np.clip(0.2 + (np.exp(2 * (o - 0.5)) - 1) / (np.exp(1) - 1) * (1 - 0.2), 0, 1)
+        else:
+            alpha = env.alpha
+        
+        denominator = alpha - (1 - n_p) * (o * lambda_outgroup**rhet_eq)
+        # Avoid division by very small numbers
+        if abs(denominator) < 1e-10:
+            denominator = 1e-10
 
-        rhet_br = min(1,((n_p * o * lambda_ingroup * (1 - rhet_eq)) / env.alpha )**(1 / rhet_eq)) if rhet_eq>0 else 0 if (n_p * o * lambda_ingroup) < env.alpha else 1
+        if rhet_eq > 0:
+            # Limit the exponent to avoid overflow
+            exponent = min(50, 1 / rhet_eq) if rhet_eq > 0.01 else 50  # Consider adjusting the threshold as needed
+            numerator = n_p * o * lambda_ingroup * (1 - rhet_eq)
+            if numerator < denominator:
+                # Ensure that the base of the power is non-negative
+                base = max(numerator / denominator, 0)
+                value = base**exponent
+            else:
+                value = 1
+            rhet_br = min(1, value)
+        else:
+            # When rhet_eq is exactly 0, handle separately
+            rhet_br = 0 if (n_p * o * lambda_ingroup) < denominator else 1
         return rhet_br
     
     def simple_act(self, env, run_type, baseline):
@@ -559,10 +565,11 @@ class Player():
         theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
         theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
         if env.signal_cluster == 'appr':
-            exp_op_degree = theta_ingroup if op >= 0.5 else (1-theta_outgroup)
+            exp_op_degree = theta_ingroup if op >= 0.5 else theta_outgroup
         else:
-            exp_op_degree = theta_outgroup if op >= 0.5 else (1-theta_ingroup)
-        common_rhetoric = min(self.opt_rhetoric_intensity_func(env, conc_prop, op_degree, env.lambda_ingroup, exp_op_degree),1)
+            exp_op_degree = (1-theta_outgroup) if op >= 0.5 else (1-theta_ingroup)
+        exp_op_degree = exp_op_degree if exp_op_degree >= 0.5 else (1-exp_op_degree)
+        common_rhetoric = min(self.opt_rhetoric_intensity_func(env, conc_prop, op_degree, env.lambda_ingroup, exp_op_degree, env.lambda_outgroup),1)
         
         if common_rhetoric > rhet_thresh:
             self.action_code = 1 if op >= 0.5 else 0
@@ -589,98 +596,60 @@ class Player():
         rhet_thresh = self.rhet_thresh
         u_bar = env.security_util
         op = self.opinion[self.norm_context]
-        if op < 0.5:
+        if op >= 0.5 and op<0.55:
             f=1
-        
         mean_from_params = lambda params: params[0]/(params[0]+params[1]) if isinstance(params,tuple) else params
         n_p = self.common_proportion_posterior if isinstance(self.common_proportion_posterior,float) else self.common_proportion_posterior[0]/np.sum(self.common_proportion_posterior)
         op_degree = op if op >= 0.5 else (1-op)
         conc_prop = n_p if op >= 0.5 else (1-n_p)
-        single_institution_env = True if not all(run_type['institutions'].values()) else False
+        env.single_institution_env = True if not all(run_type['institutions'].values()) else False
         
         if not baseline:
             opt_rhetoric = dict()
-            for inst in ['extensive','intensive']:
-                if run_type['institutions'][inst] is not None:
-                    institution = run_type['institutions'][inst]
-                    theta_ingroup = self.pseudo_update_posteriors[institution.type]['ingroup']
-                    theta_outgroup = self.pseudo_update_posteriors[institution.type]['outgroup']
-                    theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
-                    theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
-                    exp_op = None
-                    opt_rhetoric[institution.type] = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup, exp_op),1)
-            
-            if single_institution_env:
-                common_rhetoric = next(iter(opt_rhetoric.values()))
-                if common_rhetoric > rhet_thresh:
-                    self.action_code = 1 if op >= 0.5 else 0
-                    self.listened_to = next(iter(opt_rhetoric))
-                    self.rhetoric_intensity = common_rhetoric
-                else:
-                    self.action_code = -1
-                    self.listened_to = 'none'
-                    self.rhetoric_intensity = 0
-
-                if self.listened_to != 'none':
-                    self.common_posterior_ingroup = self.pseudo_update_posteriors[self.listened_to]['ingroup']
-                    self.common_posterior_outgroup = self.pseudo_update_posteriors[self.listened_to]['outgroup']
-                else:
-                    self.common_posterior_ingroup = self.common_prior_ingroup
-                    self.common_posterior_outgroup = self.common_prior_outgroup    
-                self.common_posteriors = {'ingroup':self.common_posterior_ingroup,'outgroup':self.common_posterior_outgroup}
-                self.action =(self.action_code,None,self.opinion[self.norm_context],self.rhetoric_intensity,self.listened_to,None,
-                              self.common_posteriors)
-                
-                self.historical_listened_to.append(self.listened_to)
-                inst_weights = [self.historical_listened_to.count('extensive')+self.historical_listened_to.count('both'),self.historical_listened_to.count('intensive')+self.historical_listened_to.count('both')]
-                inst_weights = [w/sum(inst_weights) for w in inst_weights] if sum(inst_weights) > 0 else [0,0]
-                self.listening_proportions = {'extensive':inst_weights[0],'intensive':inst_weights[1]}
+            institution = self.sampled_institution
+            theta_ingroup = self.pseudo_update_posteriors[institution.type]['ingroup']
+            theta_outgroup = self.pseudo_update_posteriors[institution.type]['outgroup']
+            theta_ingroup = theta_ingroup[0]/np.sum(theta_ingroup) if isinstance(theta_ingroup,tuple) else theta_ingroup
+            theta_outgroup = theta_outgroup[0]/np.sum(theta_outgroup) if isinstance(theta_outgroup,tuple) else theta_outgroup
+            ''' Randomly samply an ingroup or outgroup signal. Both have been updated in the pseudo-posterior'''
+            '''
+            if op >= 0.5:
+                sampled_signal = np.random.choice(['appr', 'disappr'], p=[institution.sampling_ratio['appr'], institution.sampling_ratio['disappr']])
             else:
-                self.opt_rhetoric_extensive = opt_rhetoric['extensive']
-                self.opt_rhetoric_intensive = opt_rhetoric['intensive']
-                if self.opt_rhetoric_extensive > rhet_thresh and self.opt_rhetoric_intensive > rhet_thresh:
-                    self.action_code = 1 if op >= 0.5 else 0
-                    self.listened_to = 'both'
-                elif self.opt_rhetoric_extensive > rhet_thresh and self.opt_rhetoric_intensive <= rhet_thresh:
-                    self.action_code = 1 if op >= 0.5 else 0
-                    self.listened_to = 'extensive'
-                    self.rhetoric_intensity = self.opt_rhetoric_extensive
-                elif self.opt_rhetoric_extensive <= rhet_thresh and self.opt_rhetoric_intensive > rhet_thresh:
-                    self.action_code = 1 if op >= 0.5 else 0
-                    self.listened_to = 'intensive'
-                    self.rhetoric_intensity = self.opt_rhetoric_intensive
-                else:
-                    self.action_code = -1
-                    self.listened_to = 'none'
-                    self.rhetoric_intensity = 0
-                
-                self.historical_listened_to.append(self.listened_to)
-                
-                inst_weights = [self.historical_listened_to.count('extensive')+self.historical_listened_to.count('both'),self.historical_listened_to.count('intensive')+self.historical_listened_to.count('both')]
-                if sum(inst_weights) > 0:
-                    inst_weights = [w/sum(inst_weights) for w in inst_weights] if sum(inst_weights) > 0 else [0.5,0.5]
-                self.listening_proportions = {'extensive':inst_weights[0],'intensive':inst_weights[1]}
-                
-                if self.listened_to == 'both':
-                    self.common_posterior_outgroup = inst_weights[0]*mean_from_params(self.pseudo_update_posteriors['extensive']['outgroup']) + inst_weights[1]*mean_from_params(self.pseudo_update_posteriors['intensive']['outgroup'])
-                    self.common_posterior_ingroup = inst_weights[0]*mean_from_params(self.pseudo_update_posteriors['extensive']['ingroup']) + inst_weights[1]*mean_from_params(self.pseudo_update_posteriors['intensive']['ingroup'])
-                                       
-                    self.rhetoric_intensity = inst_weights[0]*self.opt_rhetoric_extensive + inst_weights[1]*self.opt_rhetoric_intensive
-                    
-                else:
-                    if self.listened_to == 'intensive':
-                        self.common_posterior_outgroup = self.pseudo_update_posteriors['intensive']['outgroup']
-                        self.common_posterior_ingroup = self.pseudo_update_posteriors['intensive']['ingroup']
-                    elif self.listened_to == 'extensive':
-                        self.common_posterior_outgroup = self.pseudo_update_posteriors['extensive']['outgroup']
-                        self.common_posterior_ingroup = self.pseudo_update_posteriors['extensive']['ingroup']
-                    else:
-                        self.common_posterior_ingroup = self.common_prior_ingroup
-                        self.common_posterior_outgroup = self.common_prior_outgroup
-                        
-                self.common_posteriors = {'ingroup':self.common_posterior_ingroup,'outgroup':self.common_posterior_outgroup}
-                self.action =(self.action_code,None,self.opinion[self.norm_context],self.rhetoric_intensity,self.listened_to,None,
-                              self.common_posteriors)
+                sampled_signal = np.random.choice(['appr', 'disappr'], p=[institution.sampling_ratio['disappr'], institution.sampling_ratio['appr']])
+            if sampled_signal == 'appr':
+                exp_op_degree = theta_ingroup if op >= 0.5 else theta_outgroup
+            else:
+                exp_op_degree = 1-theta_outgroup if op >= 0.5 else 1-theta_ingroup
+            '''
+            exp_op_degree = n_p*theta_ingroup + (1-n_p)*(1-theta_outgroup) if op >= 0.5 else n_p*(1-theta_ingroup) + (1-n_p)*theta_outgroup
+            
+            exp_op_degree = exp_op_degree if exp_op_degree >= 0.5 else (1-exp_op_degree)
+        
+            opt_rhetoric[institution.type] = min(self.opt_rhetoric_intensity_func(env, n_p, op_degree, env.lambda_ingroup, exp_op_degree, env.lambda_outgroup),1)
+            
+            common_rhetoric = next(iter(opt_rhetoric.values()))
+            if common_rhetoric > rhet_thresh:
+                self.action_code = 1 if op >= 0.5 else 0
+                self.listened_to = next(iter(opt_rhetoric))
+                self.rhetoric_intensity = common_rhetoric
+            else:
+                self.action_code = -1
+                self.listened_to = 'none'
+                self.rhetoric_intensity = 0
+
+            if self.listened_to != 'none':
+                self.common_posterior_ingroup = self.pseudo_update_posteriors[self.listened_to]['ingroup']
+                self.common_posterior_outgroup = self.pseudo_update_posteriors[self.listened_to]['outgroup']
+            else:
+                self.common_posterior_ingroup = self.common_prior_ingroup
+                self.common_posterior_outgroup = self.common_prior_outgroup    
+            self.common_posteriors = {'ingroup':self.common_posterior_ingroup,'outgroup':self.common_posterior_outgroup}
+            self.action =(self.action_code,None,self.opinion[self.norm_context],self.rhetoric_intensity,self.listened_to,None,
+                            self.common_posteriors)
+            
+            
+            
         else:
             theta_baseline = env.prior_baseline[0]/sum(env.prior_baseline)
             prop_baseline = env.prior_prop_baseline[0]/sum(env.prior_prop_baseline)
@@ -706,6 +675,7 @@ class Player():
             
             self.action =(self.action_code_baseline,self.action_util_baseline,self.opinion[self.norm_context],self.sanction_intensity)
         
+         
         return self.action
     
         
@@ -753,6 +723,8 @@ class Player():
             This method updates the posterior for the population (posterior over the rate of approval) based on the signal dristribution.
             Since signal distribution is a Bernoulli, we can get individual realizations of 0 and 1 separately, and then take the expectation.
         '''
+        if not env.homogenous_priors:
+            signal_distribution = np.clip(np.random.normal(signal_distribution,0.05),0,0.49) if signal_distribution < 0.5 else np.clip(np.random.normal(signal_distribution,0.05),0.5,1)
         if valid_dist:
             if not hasattr(env,'posterior_prediction_model'):
                 def _post(x,priors_rescaled,likelihood_rescaled):
@@ -827,44 +799,49 @@ class Player():
         '''
         #self.common_proportion_posterior = exp_x
 
-    def generate_posteriors(self,env,institution,common_proportion_prior,update_type):
-        opt_signals = institution.opt_signals if institution is not None else institution.opt_signals
+    def generate_posteriors(self,env,opt_signals,common_proportion_prior,update_type):
         if update_type == 'ingroup':
             group_type = 'appr' if self.opinion[self.norm_context] >= 0.5 else 'disappr'
         elif update_type == 'outgroup':
             group_type = 'appr' if self.opinion[self.norm_context] < 0.5 else 'disappr'
         else:
             raise ValueError('Invalid update type')
-        opt_signals = opt_signals[group_type]
+        #opt_signals = opt_signals[group_type]
+        if group_type == 'appr':
+            opt_signals = opt_signals['appr']
+        else:
+            opt_signals = opt_signals['disappr']
         common_prior = self.common_prior_ingroup if update_type=='ingroup' else self.common_prior_outgroup
         common_prior_mean = common_prior[0]/np.sum(common_prior)
         curr_state = common_prior_mean
         valid_dist = True
         try:
-            _curr_state = round(curr_state,1)
+            _curr_state = np.round(curr_state,1)
+            _curr_state = _curr_state[0] if isinstance(_curr_state,np.ndarray) else _curr_state
             signal_distribution = opt_signals[_curr_state]
         except KeyError:
             print('Info:')
+            print(self.id)
             print(self.opinion[self.norm_context])
             print(update_type)
             print(curr_state)
             print(opt_signals)
             print(common_prior)
-            raise ValueError('State not in distribution:'+str(curr_state))
+            raise ValueError('State not in distribution:'+str(_curr_state))
         ''' Since we are running with only one intensive instituion, the signals are a tuple - (the intensive signal for approval, the intensive signal for disapproval)'''
         if update_type == 'ingroup':
-            signal_distribution = signal_distribution[1] if env.signal_cluster == 'appr' else signal_distribution[0]
+            signal_distribution = signal_distribution[1] if self.opinion[self.norm_context] >= 0.5 else signal_distribution[0]
         else:
-            signal_distribution = signal_distribution[1] if env.signal_cluster == 'appr' else signal_distribution[0]
+            signal_distribution = signal_distribution[1] if self.opinion[self.norm_context] >= 0.5 else signal_distribution[0]
 
-        #if institution.type == 'extensive' or (institution.type == 'intensive' and update_type == 'ingroup'):
-        if True:
+        #if self.sampled_institution.type == 'extensive' or (self.sampled_institution.type == 'intensive' and update_type == 'ingroup'):
+        if env.ts > 1:
             try:
-                if round(abs(signal_distribution-common_prior_mean),1) > env.normal_constr_w:
+                if np.round(abs(signal_distribution-common_prior_mean),1) > env.normal_constr_w:
                     common_posterior,common_proportion_posterior =  common_prior, common_proportion_prior
                     valid_dist = False
                      
-            except TypeError:
+            except:
                 print('update type',update_type)
                 print(self.opinion[self.norm_context],common_prior,signal_distribution,self.pseudo_update_posteriors if hasattr(self, 'pseudo_update_posteriors') else 'first run')
                 raise
@@ -891,10 +868,11 @@ class Player():
                 expected_posterior_for_state_x = all_posteriors
                 exp_x = (x_range * expected_posterior_for_state_x).sum()
                 var_x = gaussian_distribution.var()
+                exp_x = np.clip(exp_x, 0, 0.49) if common_prior[0] / sum(common_prior) < 0.5 else np.clip(exp_x, 0.5, 1)
             else:
                 model = env.posterior_prediction_model[group_type]
                 exp_x, var_x = utils.predict_posterior(model, common_prior[0], common_prior[1], signal_distribution)
-                f=1
+                
             '''
             print(exp_x)
             plt.figure()
@@ -904,27 +882,31 @@ class Player():
             plt.title('likelihood:'+str(signal_distribution)+','+str(self.common_prior[0]/sum(self.common_prior)))
             plt.show()
             '''
-            common_posterior = utils.est_beta_from_mu_sigma(exp_x, var_x)
+            if np.isnan(exp_x):
+                f=1
+            common_posterior = utils.est_beta_from_mu_sigma(exp_x, var_x, env.inst_update_rate)
+
             if self.opinion[self.norm_context] >= 0.5:
                 if (update_type=='ingroup' and common_posterior[0]<common_posterior[1]) or (update_type=='outgroup' and common_posterior[0]>common_posterior[1]):
                     f=1
             else:    
                 if (update_type=='ingroup' and common_posterior[0]>common_posterior[1]) or (update_type=='outgroup' and common_posterior[0]<common_posterior[1]):
                     f=1   
-        ''' Sanity check '''
-        _param_min = np.min(common_posterior)
-        if _param_min < 1:
-            _diff = 1-_param_min
-            common_posterior = (common_posterior[0]+_diff,common_posterior[1]+_diff)
+
+        
         common_proportion_posterior = common_proportion_prior[0]/np.sum(common_proportion_prior)
         if update_type == 'outgroup':
             _c = common_posterior[0]/np.sum(common_posterior)
             if (_c-0.5)*(self.opinion[self.norm_context]-0.5) > 0:
-                f=1
+                print(f'Current state: {curr_state}, Opt signal: {str(opt_signals)}')
+                print(f'Exp: {exp_x}, Var: {var_x}, Posterior: {common_posterior}')
+                assert False, f"Outgroup update should not result in inconsistent opinion beliefs. Agent id: {self.id} Opinion: {self.opinion[self.norm_context]}, Posterior: {common_posterior}"
         else:
             _c = common_posterior[0]/np.sum(common_posterior)
-            if (_c-0.5)*(self.opinion[self.norm_context]-0.5) <= 0:
-                f=1
+            if (_c-0.5)*(self.opinion[self.norm_context]-0.5) < 0:
+                print(f'Current state: {curr_state}, Opt signal: {str(opt_signals)}')
+                print(f'Exp: {exp_x}, Var: {var_x}, Posterior: {common_posterior}')
+                assert False, f"Ingroup update should not result in inconsistent opinion beliefs. Agent id: {self.id} Opinion: {self.opinion[self.norm_context]}, Posterior: {common_posterior}"
         return common_posterior, common_proportion_posterior
         ''' Generate posteriors for norm support '''
         '''
@@ -941,15 +923,60 @@ class StewardAgent():
     
     def __init__(self,qnetwork):
         self.qnetwork = qnetwork       
+
+class AgentPersona:
+    def __init__(self, agent):
+        self.agent = agent
+        # Initialize dictionaries to track rewards and counts for each slot machine
+        self.rewards = {'extensive': 0, 'intensive': 0}
+        self.counts = {'extensive': 0, 'intensive': 0}
+        self.total_pulls = 0
+        self.last_pulled = None
+
+    def pull(self):
+        """
+        Pulls the slot machine based on the UCB algorithm.
+        Returns the name of the pulled slot machine.
+        """
+        # If none of the arms have been pulled, pull randomly
+        if max(list(self.rewards.values())) <= 0:
+            return np.random.choice(list(self.rewards.keys()))
+        # If any arm has not been pulled yet, pull it
+        for arm in self.counts:
+            if self.counts[arm] == 0:
+                return arm
+
+        # Calculate UCB values for each arm and pull the one with the highest UCB value
+        ucb_values = {
+            arm: self.rewards[arm] / self.counts[arm] + math.sqrt(2 * math.log(self.total_pulls) / self.counts[arm])
+            for arm in self.counts
+        }
+        pulled = max(ucb_values, key=ucb_values.get)
+        self.last_pulled = pulled
+        return pulled
+
+    def update_rewards(self, listened_to):
+        """
+        Updates the reward for the pulled arm and increments the count of pulls.
+        :param arm: The arm that was pulled ('participatory' or 'ideological_ingroup')
+        :param reward: The reward to add (integer)
+        """
+        if listened_to in self.rewards:
+            self.rewards[listened_to] += 1
+        else:
+            self.rewards[self.agent.sampled_institution.type] += -1
+        self.counts[self.agent.sampled_institution.type] += 1
+        self.total_pulls += 1
+        
         
 class Institution:
     def __init__(self, type, opt_signals=None):
         self.type=type
         self.subscriber_list = []
         self.signals = {'in_group':[],'out_group':[]}
-        self.institution_community_opinion = None
-        self.institution_community_ingroup_belief = None
-        self.institution_community_outgroup_belief = None
+        self.institution_community = []
+        self.institution_community_approval_opinion = None
+        self.institution_community_disapproval_opinion = None
         self.opt_signals = opt_signals
         
     def generate_signal(self, op_state):
@@ -957,6 +984,16 @@ class Institution:
             return self.opt_signals[round(op_state,1)]
         else:
             return self.opt_signals[round(op_state,1)]
+    
+    def populate_community_signals(self):
+        _app_grp = [ag.opinion[ag.norm_context] for ag in self.institution_community if ag.opinion[ag.norm_context] >= 0.5]
+        _disapp_grp = [ag.opinion[ag.norm_context] for ag in self.institution_community if ag.opinion[ag.norm_context] < 0.5]
+        self.institution_community_approval_opinion = np.mean(_app_grp) if len(_app_grp) > 0 else None
+        ''' Outgroup community update comes only from participatory institutions (we are running simulation for only the approval group)'''
+        if len(_disapp_grp) > 0 and self.type=='extensive':
+            self.institution_community_disapproval_opinion = np.mean(_disapp_grp)
+        else: 
+            self.institution_community_disapproval_opinion =  np.mean([ag.common_prior_outgroup for ag in self.institution_community if ag.opinion[ag.norm_context] >= 0.5])
             
 class RunInfo():
     
@@ -977,15 +1014,19 @@ def run_sim_single_institution(run_param):
     inst_type = 'extensive' if run_param['attr_dict']['extensive'] else 'intensive'
     institution = Institution(inst_type)
     if institution.type == 'extensive':
-        institution.opt_signals = {'appr': run_param['extensive_optimal'], 'disappr': run_param['extensive_optimal']}
+        institution.opt_signals = run_param['extensive_optimal']
     else:
         '''TODO: Need to make the name consistent with the intensive case'''
-        institution.opt_signals = {'appr': run_param['intensive_optimal'], 'disappr': run_param['intensive_optimal']}
-
+        institution.opt_signals = run_param['intensive_optimal']
+    institution.sampling_ratio = {k: v for k, v in zip(run_param['inst_sampling_ratios'][institution.type].keys(), utils.softmax(list(run_param['inst_sampling_ratios'][institution.type].values())))}
     for group_type in ['control','treatment']:
+    #for group_type in ['treatment']:
         
         for batch_num in tqdm(np.arange(1, run_param['attr_dict']['num_batches']), desc='Batch Progress'):
             env = parallel_env(render_mode='human', attr_dict=run_param['attr_dict'])
+            if 'posterior_prediction_model' in run_param:
+                env.posterior_prediction_model = run_param['posterior_prediction_model']
+            env.rhetoric_estimation_model = run_param['rhetoric_estimation_model']
             
             
             env.reset()
@@ -1004,11 +1045,12 @@ def run_sim_single_institution(run_param):
                 #print('Progress: batch_num:', batch_num, 'ts:', ts, 'out of 100')
                 mean_common_prior_ingroup_var = np.mean([utils.beta_var(agent.common_prior_ingroup[0],agent.common_prior_ingroup[1]) for agent in env.possible_agents])
                 mean_common_prior_outgroup_var = np.mean([utils.beta_var(agent.common_prior_outgroup[0],agent.common_prior_outgroup[1]) for agent in env.possible_agents])
-                
+                env.ts = ts
                 if max(mean_common_prior_ingroup_var,mean_common_prior_outgroup_var) < 0.001:
                     break
                 appr_pos_for_ts,disappr_pos_for_ts, prop_for_ts = None, None, None
                 for agent in env.possible_agents:
+                    agent.sampled_institution = institution
                     if math.isnan(agent.common_prior_outgroup[0]/np.sum(agent.common_prior_outgroup)) or math.isnan(agent.common_prior_ingroup[0]/np.sum(agent.common_prior_ingroup)):
                         raise Exception('Nan in common prior')
                     if group_type == 'treatment':
@@ -1017,8 +1059,8 @@ def run_sim_single_institution(run_param):
                             outgroup_posterior = disappr_pos_for_ts if agent.opinion[agent.norm_context] >= 0.5 else appr_pos_for_ts
                             agent.common_proportion_prior = prop_for_ts
                         else:
-                            outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'outgroup')
-                            ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution,agent.common_proportion_prior,'ingroup')
+                            outgroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution.opt_signals,agent.common_proportion_prior,'outgroup')
+                            ingroup_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,institution.opt_signals,agent.common_proportion_prior,'ingroup')
                         if env.homogenous_priors:
                             if appr_pos_for_ts is None:
                                 appr_pos_for_ts = ingroup_posterior if agent.opinion[agent.norm_context] >= 0.5 else outgroup_posterior
@@ -1031,7 +1073,7 @@ def run_sim_single_institution(run_param):
                         agent.pseudo_update_posteriors = {institution.type:{'outgroup':agent.common_prior_outgroup,'ingroup':agent.common_prior_ingroup}}
                 actions = {agent.id:agent.act(env,run_type={'institutions':{'extensive':institution if institution.type == 'extensive' else None,
                                                                             'intensive':institution if institution.type == 'intensive' else None},'update_type':'common'},baseline=False) for agent in env.possible_agents}
-                observations, rewards, terminations, truncations, infos = env.step(actions,ts,baseline=False)
+                observations, rewards, terminations, truncations, infos = env.step(actions,ts,run_type = 'baseline')
                 mean_opinion_appr, mean_in_belief_appr, mean_out_belief_appr, participation_appr = env.generate_row_entry('appr')
                 mean_opinion_disappr, mean_in_belief_disappr, mean_out_belief_disappr, participation_disappr = env.generate_row_entry('disappr')
                 if group_type == 'treatment':
@@ -1043,9 +1085,9 @@ def run_sim_single_institution(run_param):
         
         df = pd.DataFrame(state_evolution if group_type=='treatment' else state_evolution_baseline, columns=cols)
         if run_param['credible']:
-            file_path = 'data\\single_'+institution.type+'_'+str(group_type)+'_'+run_param['attr_dict']['distr_shape']+'.csv'
+            file_path = os.path.join(os.getcwd(),'data','ta='+str(run_param['attr_dict']['tailored_alpha'])+'_single_'+institution.type+'_'+str(group_type)+'_'+run_param['attr_dict']['distr_shape']+'.csv')
         else:
-            file_path = 'data\\single_'+institution.type+'_'+str(group_type)+'_'+run_param['attr_dict']['distr_shape']+'_incredible.csv'
+            file_path = os.path.join(os.getcwd(),'data','ta='+str(run_param['attr_dict']['tailored_alpha'])+'_single_'+institution.type+'_'+str(group_type)+'_'+run_param['attr_dict']['distr_shape']+'_incredible.csv')
         if os.path.exists(file_path):
             # Append without header if file exists
             df.to_csv(file_path, mode='a', header=False, index=True)
@@ -1072,11 +1114,15 @@ def run_sim_multiple_institution(run_param):
     institution_extensive = Institution('extensive')
     institution_intensive = Institution('intensive')
 
+
     institution_extensive.opt_signals = run_param['extensive_optimal']
     institution_intensive.opt_signals = run_param['intensive_optimal']
+    institution_extensive.sampling_ratio = {k: v for k, v in zip(run_param['inst_sampling_ratios']['extensive'].keys(), utils.softmax(list(run_param['inst_sampling_ratios']['extensive'].values())))}
+    institution_intensive.sampling_ratio = {k: v for k, v in zip(run_param['inst_sampling_ratios']['intensive'].keys(), utils.softmax(list(run_param['inst_sampling_ratios']['intensive'].values())))}
     
     for batch_num in tqdm(np.arange(1, run_param['attr_dict']['num_batches']), desc='Batch Progress', position=0, leave=True):
             env = parallel_env(render_mode='human', attr_dict=run_param['attr_dict'])
+            env.institutions = {'extensive':institution_extensive,'intensive':institution_intensive}
             if 'posterior_prediction_model' in run_param:
                 env.posterior_prediction_model = run_param['posterior_prediction_model']
             env.rhetoric_estimation_model = run_param['rhetoric_estimation_model']
@@ -1086,7 +1132,14 @@ def run_sim_multiple_institution(run_param):
                 for ag in env.possible_agents:
                     state_evolution.append([0,0,ag.opinion[ag.norm_context],ag.common_posterior_outgroup[0]/np.sum(ag.common_posterior_outgroup),ag.common_posterior_ingroup[0]/np.sum(ag.common_posterior_ingroup),'treatment',env.normal_constr_w,env.alpha,-1,'none'])
             for ts in (np.arange(1, run_param['attr_dict']['num_timesteps'])):
-                                                               
+                out_bel_plots = [ag.common_prior_outgroup[0]/np.sum(ag.common_prior_outgroup) for ag in env.possible_agents if ag.opinion[ag.norm_context] >= 0.5]
+                '''
+                plt.figure()
+                plt.hist(out_bel_plots)
+                plt.title(f'Outgroup belief at time step {ts}')
+                plt.show()
+                '''             
+                env.ts = ts                                      
                 #print('Progress: batch_num:', batch_num, 'ts:', ts, 'out of 100')
                 mean_common_prior_ingroup_var = np.mean([utils.beta_var(agent.common_prior_ingroup[0],agent.common_prior_ingroup[1]) for agent in env.possible_agents])
                 mean_common_prior_outgroup_var = np.mean([utils.beta_var(agent.common_prior_outgroup[0],agent.common_prior_outgroup[1]) for agent in env.possible_agents])
@@ -1097,200 +1150,49 @@ def run_sim_multiple_institution(run_param):
                 for agent in env.possible_agents:
                     if math.isnan(agent.common_prior_outgroup[0]/np.sum(agent.common_prior_outgroup)) or math.isnan(agent.common_prior_ingroup[0]/np.sum(agent.common_prior_ingroup)):
                         raise Exception('Nan in common prior')
-                    if (agent.common_prior_outgroup[0]/np.sum(agent.common_prior_outgroup) - 0.5)*(agent.opinion[agent.norm_context]-0.5) > 0 \
-                        or (agent.common_prior_ingroup[0]/np.sum(agent.common_prior_ingroup) - 0.5)*(agent.opinion[agent.norm_context]-0.5) < 0:
-                        f=1
-                    if env.homogenous_priors and appr_pos_for_ts is not None and disappr_pos_for_ts is not None:
+                    
+                    #if env.homogenous_priors and appr_pos_for_ts is not None and disappr_pos_for_ts is not None:
+                    if False:
                         ingroup_posterior = appr_pos_for_ts if agent.opinion[agent.norm_context] >= 0.5 else disappr_pos_for_ts
                         outgroup_posterior = disappr_pos_for_ts if agent.opinion[agent.norm_context] >= 0.5 else appr_pos_for_ts
                         agent.common_proportion_prior = prop_for_ts
                     else:
-                        outgroup_posterior_extensive, agent.common_proportion_posterior = agent.generate_posteriors(env,institution_extensive,agent.common_proportion_prior,'outgroup')
-                        ingroup_posterior_extensive, agent.common_proportion_posterior = agent.generate_posteriors(env,institution_extensive,agent.common_proportion_prior,'ingroup')
+                        sampled_institution_type = env.agent_personas[agent.id].pull()
+                        sampled_institution = institution_extensive if 'extensive' in sampled_institution_type else institution_intensive
+                        agent.sampled_institution = sampled_institution
+                        outgroup_posterior_extensive, agent.common_proportion_posterior = agent.generate_posteriors(env,sampled_institution.opt_signals,agent.common_proportion_prior,'outgroup')
+                        ingroup_posterior_extensive, agent.common_proportion_posterior = agent.generate_posteriors(env,sampled_institution.opt_signals,agent.common_proportion_prior,'ingroup')
 
-                        outgroup_posterior_intensive, agent.common_proportion_posterior = agent.generate_posteriors(env,institution_intensive,agent.common_proportion_prior,'outgroup')
-                        ingroup_posterior_intensive, agent.common_proportion_posterior = agent.generate_posteriors(env,institution_intensive,agent.common_proportion_prior,'ingroup')
-
-                    if env.homogenous_priors:
+                    #if env.homogenous_priors:
+                    if False:
                         if appr_pos_for_ts is None:
                             appr_pos_for_ts = ingroup_posterior if agent.opinion[agent.norm_context] >= 0.5 else outgroup_posterior
                             prop_for_ts = agent.common_proportion_posterior
                         if disappr_pos_for_ts is None:
                             disappr_pos_for_ts = ingroup_posterior if agent.opinion[agent.norm_context] < 0.5 else outgroup_posterior
 
-                    agent.pseudo_update_posteriors = {'extensive':{'outgroup':outgroup_posterior_extensive,'ingroup':ingroup_posterior_extensive},
-                                                      'intensive':{'outgroup':outgroup_posterior_intensive,'ingroup':ingroup_posterior_intensive}}
-                    
-                actions = {agent.id:agent.act(env,run_type={'institutions':{'extensive':institution_extensive,'intensive':institution_intensive}},baseline=False) for agent in env.possible_agents}
-                observations, rewards, terminations, truncations, infos = env.step(actions,ts,baseline=False)
+                    agent.pseudo_update_posteriors = {sampled_institution.type:{'outgroup':outgroup_posterior_extensive,'ingroup':ingroup_posterior_extensive}}
+                    if env.verbose:
+                        print(f'Agent {agent.id} with {agent.opinion[agent.norm_context]} pseudo update posteriors {agent.pseudo_update_posteriors}')
+                actions = {agent.id:agent.act(env,run_type={'institutions':{agent.sampled_institution.type:agent.sampled_institution}},baseline=False) for agent in env.possible_agents}
+                observations, rewards, terminations, truncations, infos = env.step(actions,ts,run_type='execution')
                 
                 for ag in env.possible_agents:
+                    if ag.opinion[ag.norm_context] >= 0.5:
+                        print(f'Batch: {batch_num} TS:{ts} Agent {ag.id} opinion {ag.opinion[ag.norm_context]} beliefs out,in {ag.common_prior_outgroup[0]/np.sum(ag.common_prior_outgroup), ag.common_prior_ingroup[0]/np.sum(ag.common_prior_ingroup)} persona info reward {env.agent_personas[ag.id].rewards} count {env.agent_personas[ag.id].counts} total pulls {env.agent_personas[ag.id].total_pulls}')
                     try:
                         state_evolution.append([batch_num,ts,ag.opinion[ag.norm_context],ag.common_prior_outgroup[0]/np.sum(ag.common_prior_outgroup),ag.common_prior_ingroup[0]/np.sum(ag.common_prior_ingroup),'treatment',env.normal_constr_w,env.alpha,ag.action_code,ag.listened_to])
                     except IndexError:
                         f=1
                         raise
     df = pd.DataFrame(state_evolution, columns=cols)
-    file_path = os.path.join(os.getcwd(),'data','multiple_'+run_param['attr_dict']['distr_shape']+'.csv')
-    file_path = 'data\\multiple_homo='+str(run_param['attr_dict']['homogenous_priors'])+'_'+run_param['attr_dict']['distr_shape']+'.csv'
+    file_path = os.path.join(os.getcwd(),'data','multiple_homo='+str(run_param['attr_dict']['homogenous_priors'])+run_param['attr_dict']['distr_shape']+'.csv')
     df.to_csv(file_path, mode='w', header=True, index=True)
     print('Done') 
                 
 
         
-def old_run_sim_multiple_institution(run_param):
-    """ ENV SETUP """
-    common_prior, common_prior_ingroup, common_prior_outgroup = run_param['common_prior'],run_param['common_prior_ingroup'],run_param['common_prior_outgroup']
-    common_proportion_prior = run_param['common_proportion_prior']
-    normal_constr_w = run_param['normal_constr_w']
-    common_prior_mean = common_prior[0]/sum(common_prior)
-    state_evolution,state_evolution_baseline = dict(), dict()
-    lst = []
-    cols = ['run_id', 'time_step', 'listened', 'opinion', 'out_belief']
-    lst_df = pd.DataFrame(lst, columns=cols)
-    #for signal_distr_theta_idx, signal_distr_theta in enumerate([common_prior_mean-(normal_constr_w+0.05),common_prior_mean-(normal_constr_w-0.05),common_prior_mean+(normal_constr_w+0.05),common_prior_mean+(normal_constr_w-0.05)]):
-    '''
-        opt_signals acquired from running solving_tools.py separately
-    '''
-    opt_signals, opt_signals_ingroup, opt_signals_outgroup = run_param['opt_signals'], run_param['opt_signals_ingroup'], run_param['opt_signals_outgroup']
-    for batch_num in np.arange(10):
-        extensive_institution = Institution('extensive')
-        intensive_institution = Institution('intensive')
-        env = parallel_env(render_mode='human',attr_dict={'distr_params':{'mean_op_degree_apr':0.7,'mean_op_degree_disapr':0.4,'apr_weight':0.5,'SD':0.05},
-                                                           'distr_shape':'U',
-                                                            'extensive':False,
-                                                            'common_prior' : common_prior,
-                                                            'common_prior_ingroup' : common_prior_ingroup,
-                                                            'common_prior_outgroup' : common_prior_outgroup,
-                                                            'common_proportion_prior' : common_proportion_prior,
-                                                            'common_prior_appr_input':run_param['common_prior_appr_input'],
-                                                            'only_intensive':run_param['only_intensive']})
-        ''' Check that every norm context has at least one agent '''
-        if not all([True if [_ag.norm_context for _ag in env.possible_agents].count(n) > 0 else False for n in env.norm_context_list]):
-            raise Exception()
-        env.reset()
-        env.no_print = True
-        env.NUM_ITERS = 100
-        
-        env.prior_baseline = env.common_prior
-        env.prior_prop_baseline = common_proportion_prior
-        env.normal_constr_w = normal_constr_w
-        #env.constraining_distribution = utils.Gaussian_plateu_distribution(env.common_prior[0]/sum(env.common_prior),.01,.3)
-        #env.constraining_distribution = utils.Gaussian_plateu_distribution(.3,.01,.3)
-        dataset = []
-        history = [[(ag.opinion[ag.norm_context],'intensive' if env.only_intensive else 'both',1,0,ag.common_posterior_outgroup[0]/np.sum(ag.common_posterior_outgroup)) for ag in env.possible_agents if ag.opinion[ag.norm_context]>=0.5]]
-        #history = []
-        '''
-        plt.figure()
-        plt.hist([ag.opinion[ag.norm_context] for ag in env.possible_agents])
-        plt.show()
-        '''
-        for i in np.arange(100):
-            mean_common_prior_var = np.mean([utils.beta_var(agent.common_prior[0],agent.common_prior[1]) for agent in env.possible_agents])
-            mean_common_prior_ingroup_var = np.mean([utils.beta_var(agent.common_prior_ingroup[0],agent.common_prior_ingroup[1]) for agent in env.possible_agents])
-            mean_common_prior_outgroup_var = np.mean([utils.beta_var(agent.common_prior_outgroup[0],agent.common_prior_outgroup[1]) for agent in env.possible_agents])
-            
-            if min(mean_common_prior_var,mean_common_prior_ingroup_var,mean_common_prior_outgroup_var) < 0.001:
-                break
-            #print(min(mean_common_prior_var,mean_common_prior_ingroup_var,mean_common_prior_outgroup_var))
-            
-            print(common_prior,batch_num,i)
-            #curr_state = np.mean([agent.common_prior[0]/sum(agent.common_prior) for agent in env.possible_agents])
-            #curr_state_ingroup = np.mean([agent.common_prior_ingroup[0]/sum(agent.common_prior_ingroup) for agent in env.possible_agents])
-            #curr_state_outgroup = np.mean([agent.common_prior_outgroup[0]/sum(agent.common_prior_outgroup) for agent in env.possible_agents])
-            #signal_distr_theta = curr_state - 0.3
-            
-            #signal_distr_theta = opt_signals[round(curr_state,1)]
-            #signal_distr_theta_ingroup = opt_signals_ingroup[round(curr_state_ingroup,1)]
-            #signal_distr_theta_outgroup = opt_signals_outgroup[round(curr_state_outgroup,1)]
-            
-            
-            if i not in  state_evolution:
-                state_evolution[i] = []
-            state_evolution[i].append((env.common_prior[0]/sum(env.common_prior),env.mean_sanction))
-            if i not in  state_evolution_baseline:
-                state_evolution_baseline[i] = []
-            state_evolution_baseline[i].append((env.prior_baseline[0]/sum(env.prior_baseline),env.mean_sanction_baseline))
-            
-            ''' break if the mean beliefs (common or any of ingroup and outgroup) variance is very low. Because then information is stable '''
-            
-            ''' act is based on the new posterior acting as prior '''
-            for agent in env.possible_agents:
-                if math.isnan(agent.common_prior[0]/np.sum(agent.common_prior)) or math.isnan(agent.common_prior_outgroup[0]/np.sum(agent.common_prior_outgroup)) or math.isnan(agent.common_prior_ingroup[0]/np.sum(agent.common_prior_ingroup)):
-                    continue
-                # Change this to generate for both institutions and reverse the signals for intensive institutions for disapp opinions
-                agent.common_posterior, agent.common_proportion_posterior = agent.generate_posteriors(env,(extensive_institution, intensive_institution),agent.common_proportion_prior,'common')
-                agent.common_posterior_ingroup, agent.common_proportion_posterior = agent.generate_posteriors(env,(extensive_institution, intensive_institution),agent.common_proportion_prior,'ingroup')
-                agent.common_posterior_outgroup, agent.common_proportion_posterior = agent.generate_posteriors(env,(extensive_institution, intensive_institution),agent.common_proportion_prior,'outgroup')
-            
-                
-            actions = {agent.id:agent.act(env,run_type='self-ref',baseline=False) for agent in env.possible_agents}
-            '''
-            plt.figure()
-            plt.hist([ag.opinion[ag.norm_context] for ag in env.possible_agents if ag.action[0]!=-1])
-            plt.show()
-            '''
-            ''' common prior is updated based on the action observations '''
-            observations, rewards, terminations, truncations, infos = env.step(actions,i,baseline=False)
-            history.append(infos)
-            
-            #actions = {agent.id:agent.act(env,run_type='self-ref',baseline=True) for agent in env.possible_agents}
-            #env.step(actions,i,baseline=True)
-        '''
-        plt.figure()
-        plt.plot([ag.common_prior_outgroup_init for ag in env.possible_agents if ag.opinion[ag.norm_context]>=0.5],[ag.common_posterior_outgroup for ag in env.possible_agents if ag.opinion[ag.norm_context]>=0.5],'.')
-        plt.show()
-        '''
-        data = {'run_id':[batch_num]*len(history[0]), 'time_step':[1]*len(history[0]), 
-                'listened': [d[1] for d in history[0]],
-                'opinion': [d[0] for d in history[0]], 'out_belief': [d[4] for d in history[0]] }
-        df = pd.DataFrame(data)
-        data = df.dropna()
-        lst_df = lst_df.append(data)
-        
-        data = {'run_id':[batch_num]*len(history[-1]), 'time_step':[len(history)+1]*len(history[-1]), 
-                'listened': [d[1] for d in history[-1]],
-                'opinion': [d[0] for d in history[-1]], 'out_belief': [d[4] for d in history[-1]] }
-        df = pd.DataFrame(data)
-        data = df.dropna()
-        lst_df = lst_df.append(data)
-        '''
-        sns.lmplot(x="x", y="y", data=df, ci=95, hue='listened')  
-        subset_data = data[data['listened'] == 'both']
-        r, p = pearsonr(subset_data['x'], subset_data['y'])
-        ax = plt.gca()
-        ax.text(.05, .8, 'r={:.2f}, p={:.2g}'.format(r, p),transform=ax.transAxes)
-        
-        data = {'x': [d[0] for d in history[-1]], 'y': [d[4] for d in history[-1]], 'listened': [d[1] for d in history[-1]]}
-        df = pd.DataFrame(data)
-        data = df.dropna()
-        
-        sns.lmplot(x="x", y="y", data=df, ci=95, hue='listened')  
-        subset_data = data[data['listened'] == 'both']
-        r, p = pearsonr(subset_data['x'], subset_data['y'])
-        ax = plt.gca()
-        ax.text(.05, .8, 'r={:.2f}, p={:.2g}'.format(r, p),transform=ax.transAxes)
-        
-        plt.show()  
-        
-            
-            #env.common_prior = (np.random.randint(low=1,high=4),np.random.randint(low=1,high=4))
-        cols = ['run_id', 'time_step', 'listened', 'opinion', 'out_belief']
-        only_baseline_plot = False
-        
-        
-        if not only_baseline_plot:
-            for k,v in state_evolution.items():
-                for _v in v:
-                    lst.append([k,_v[0],'signal',_v[1]])
-            
-        
-        for k,v in state_evolution_baseline.items():
-            for _v in v:
-                lst.append([k,_v[0],'no signal',_v[1]])
-        '''
-    
-    return lst_df
+
 
 def multiple_inst_run(attr_dict=None,
                     run_param=None):
@@ -1298,53 +1200,7 @@ def multiple_inst_run(attr_dict=None,
     run_sim_multiple_institution(run_param)
     
     
-def single_inst_run(extensive_outgroup_optimal=None,
-                    extensive_ingroup_optimal=None,
-                    attr_dict=None,
-                    run_param=None):
-    intensive_outgroup_optimal = {'type':'disappr', 'opt_signals': {0.0: 0.0, 0.1: 0.0, 0.2: 0.0, 0.3: 0.0, 0.4: 0.0}}
-    if extensive_outgroup_optimal is None:
-        extensive_outgroup_optimal = {0.2:{'type':'disappr', 'opt_signals': {0.0: 0.2, 0.1: 0.3, 0.2: 0.3, 0.3: 0.3, 0.4: 0.3}},
-                                0.3:{'type':'disappr', 'opt_signals': {0.0: 0.0, 0.1: 0.4, 0.2: 0.5, 0.3: 0.5, 0.4: 0.5}},
-                                0.1:{'type':'disappr', 'opt_signals': {0.0: 0.0, 0.1: 0.0, 0.2: 0.3, 0.3: 0.4, 0.4: 0.5}}}
-    intensive_ingroup_optimal = {'type':'appr', 'opt_signals': {0.5: 0.6, 0.6: 0.6, 0.7: 0.6, 0.8: 0.6, 0.9: 0.8, 1.0: 0.8}}
-    if extensive_ingroup_optimal is None:
-        extensive_ingroup_optimal = {0.2:{'type':'appr', 'opt_signals': {0.5: 0.5, 0.6: 0.5, 0.7: 0.5, 0.8: 0.6, 0.9: 0.8, 1.0: 0.8}},
-                                0.3:{'type':'appr', 'opt_signals': {0.5: 0.5, 0.6: 0.5, 0.7: 0.5, 0.8: 0.5, 0.9: 0.6, 1.0: 1.0}},
-                                0.1:{'type':'appr', 'opt_signals': {0.5: 0.5, 0.6: 0.5, 0.7: 0.6, 0.8: 0.7, 0.9: 1.0, 1.0: 1.0}}
-                                }
-    extensive_optimal = None
-    if run_param is None:
-        run_param ={'common_prior_appr_input':(5,2),
-                        'common_prior_appr':(5,2),
-                        'common_prior_disappr':(2,5),
-                        'common_proportion_prior':(5,5),
-                        'normal_constr_w':0.3,
-                        'only_intensive':False,
-                        'credible':True}
-    if attr_dict is None:
-        institution = Institution('extensive')
-        attr_dict = { 'distr_params':{'mean_op_degree_apr':0.55,'mean_op_degree_disapr':0.45,'apr_weight':0.5,'SD':0.05},
-                                            'distr_shape':'uniform',
-                                            'extensive': False if institution.type == 'intensive' else True,
-                                            'common_prior_appr': run_param['common_prior_appr'],
-                                            'common_prior_disappr': run_param['common_prior_disappr'],
-                                            'common_proportion_prior': run_param['common_proportion_prior'],
-                                            'common_prior_appr_input': run_param['common_prior_appr_input'],
-                                            'only_intensive': False if institution.type == 'extensive' else True,
-                                            'homogenous_priors': True,
-                                            'num_players':500,
-                                            'alpha':0.3,
-                                            'outgroup_rhetoric_intensity':0.3,
-                                            'normal_constr_w':run_param['normal_constr_w']
-                                }
-        run_param['attr_dict'] = attr_dict
-    extensive_optimal = extensive_outgroup_optimal[run_param['normal_constr_w'] if run_param['credible'] else 0.3]['opt_signals']
-    extensive_optimal.update(extensive_ingroup_optimal[run_param['normal_constr_w'] if run_param['credible'] else 0.3]['opt_signals'])
-    extensive_optimal = {k:(v,v) for k,v in extensive_optimal.items()}
-    int_type = 'extensive' if run_param['attr_dict']['extensive'] else 'intensive'
-    run_param[int_type+'_optimal'] = extensive_optimal
-    run_sim_single_institution(run_param)
+
 
 if __name__ == "__main__":
-    single_inst_run()
+    pass
